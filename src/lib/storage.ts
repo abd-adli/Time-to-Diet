@@ -71,8 +71,8 @@ export function seedInitialLocalData(): void {
     const dateStr = formatDate(d);
 
     const isToday = i === 0;
-    const calIn = isToday ? 1380 : 1520 + (i % 3) * 60;
-    const protIn = isToday ? 116 : 115 + (i % 4) * 5;
+    const calIn = isToday ? 0 : 0;
+    const protIn = isToday ? 0 : 0;
 
     dailyLogsSeed[dateStr] = {
       id: `seed-dl-${dateStr}`,
