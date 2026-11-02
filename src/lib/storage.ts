@@ -70,9 +70,70 @@ export function purgeLegacyStorageKeys(): void {
  */
 export const clearStaleStorageTotals = purgeLegacyStorageKeys;
 
-// Run purge immediately on client import
+/**
+ * FORCE DELETE / nuke old local storage logs and workout data when the day changes.
+ * Compares last_opened_date with new Date().toDateString().
+ * Explicitly removes all keys related to logs, workouts, or totals.
+ */
+export function nukeOldLocalStorageOnDateChange(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const today = new Date().toDateString();
+    const lastOpened = localStorage.getItem("last_opened_date");
+
+    if (lastOpened !== today) {
+      // Explicitly remove all keys related to logs, workouts, or totals
+      const keysToRemove = [
+        "daily_logs",
+        "workout_logs",
+        "food_entries",
+        "road_to_jan16_daily_logs",
+        "road_to_jan16_workout_logs",
+        "road_to_jan16_food_entries",
+        "road_to_jan16_seeded_v1",
+        "road_to_jan16_seeded",
+        "road_to_jan16_total_calories",
+        "road_to_jan16_total_protein",
+        "totalCalories",
+        "totalProtein",
+        "workout_calories",
+        "workout_calories_burned",
+        "my_app_data",
+      ];
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+      // Remove any date-specific keys not matching today's key
+      const todayKey = getTodayKey();
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (
+          k &&
+          (k.startsWith("daily_logs_") ||
+            k.startsWith("workout_logs_") ||
+            k.startsWith("food_entries_") ||
+            k.startsWith("road_to_jan16_workout_") ||
+            k.startsWith("road_to_jan16_daily_") ||
+            k.includes("total"))
+        ) {
+          if (!k.endsWith(todayKey)) {
+            localStorage.removeItem(k);
+          }
+        }
+      }
+
+      localStorage.setItem("last_opened_date", today);
+      return true;
+    }
+  } catch (e) {
+    console.warn("Failed to nuke old local storage on date change:", e);
+  }
+  return false;
+}
+
+// Run purge and date-change check immediately on client import
 if (typeof window !== "undefined") {
   purgeLegacyStorageKeys();
+  nukeOldLocalStorageOnDateChange();
 }
 
 /**

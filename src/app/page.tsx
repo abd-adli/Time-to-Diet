@@ -67,8 +67,66 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Component initialization: fetch data using ONLY today's key
+  // Component initialization: check date change and force delete old local storage data
   useEffect(() => {
+    const today = new Date().toDateString();
+    const lastOpened = typeof window !== "undefined" ? localStorage.getItem("last_opened_date") : null;
+
+    if (lastOpened !== today) {
+      if (typeof window !== "undefined") {
+        // Explicitly run localStorage.removeItem and remove any keys related to workouts or totals
+        const keysToRemove = [
+          "daily_logs",
+          "workout_logs",
+          "food_entries",
+          "road_to_jan16_daily_logs",
+          "road_to_jan16_workout_logs",
+          "road_to_jan16_food_entries",
+          "road_to_jan16_seeded_v1",
+          "road_to_jan16_seeded",
+          "road_to_jan16_total_calories",
+          "road_to_jan16_total_protein",
+          "totalCalories",
+          "totalProtein",
+          "workout_calories",
+          "workout_calories_burned",
+          "my_app_data",
+        ];
+        keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+        // Purge any old date-specific keys not matching today
+        const todayKey = getTodayKey();
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (
+            k &&
+            (k.startsWith("daily_logs_") ||
+              k.startsWith("workout_logs_") ||
+              k.startsWith("food_entries_") ||
+              k.startsWith("road_to_jan16_workout_") ||
+              k.startsWith("road_to_jan16_daily_") ||
+              k.includes("total"))
+          ) {
+            if (!k.endsWith(todayKey)) {
+              localStorage.removeItem(k);
+            }
+          }
+        }
+
+        // Run localStorage.setItem('last_opened_date', today)
+        localStorage.setItem("last_opened_date", today);
+      }
+
+      // Reset all React states (set logs to [], set workout calories to 0)
+      const cleanKey = getTodayKey();
+      setFoodEntries([]);
+      setWorkoutLog(getEmptyWorkoutLog(cleanKey));
+      setDailyLog(getEmptyDailyLog(cleanKey));
+      getBodyProgressList().then((bp) => setBodyProgressList(bp || []));
+      setLoading(false);
+      return;
+    }
+
     loadTodayData();
   }, [loadTodayData, refreshKey]);
 
