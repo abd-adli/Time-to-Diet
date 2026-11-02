@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { formatDate } from "@/lib/storage";
 import { UserTargetConfig, DEFAULT_USER_CONFIG } from "@/lib/constants";
-import { getUserConfig, saveUserConfig } from "@/lib/storage";
+import { getUserConfig, saveUserConfig, clearStaleStorageTotals } from "@/lib/storage";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 interface AppContextType {
@@ -31,6 +31,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setIsMounted(true);
+    clearStaleStorageTotals();
     const todayStr = formatDate(new Date());
     setSelectedDate(todayStr);
     setUserConfigState(getUserConfig());

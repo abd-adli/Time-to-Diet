@@ -74,6 +74,7 @@ export default function DashboardPage() {
       <MacroSummary
         dailyLog={dailyLog}
         workoutLog={workoutLog}
+        foodEntries={foodEntries}
         onUpdate={() => {
           loadData();
           triggerRefresh();

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Check, Flame, Zap, Droplets, Dumbbell, Award, Timer, ShieldAlert } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { DailyLog, WorkoutLog } from "@/lib/types";
+import { DailyLog, WorkoutLog, FoodEntry } from "@/lib/types";
 import { saveDailyLog, saveWorkoutLog } from "@/lib/storage";
 import { PRAYER_PLANKS } from "@/lib/constants";
 import { PlankTimerModal } from "./PlankTimerModal";
@@ -12,10 +12,16 @@ import confetti from "canvas-confetti";
 interface MacroSummaryProps {
   dailyLog: DailyLog;
   workoutLog: WorkoutLog;
+  foodEntries?: FoodEntry[];
   onUpdate: () => void;
 }
 
-export function MacroSummary({ dailyLog, workoutLog, onUpdate }: MacroSummaryProps) {
+export function MacroSummary({
+  dailyLog,
+  workoutLog,
+  foodEntries = [],
+  onUpdate,
+}: MacroSummaryProps) {
   const { userConfig } = useApp();
   const [activePlankTimer, setActivePlankTimer] = useState<string | null>(null);
 
@@ -25,9 +31,9 @@ export function MacroSummary({ dailyLog, workoutLog, onUpdate }: MacroSummaryPro
   const proteinMinThreshold = userConfig.dailyProteinMin || 100;
   const bmr = userConfig.baseBmr || 2056;
 
-  // Actual values
-  const caloriesIn = Number(dailyLog.calories_in) || 0;
-  const proteinIn = Number(dailyLog.protein_in) || 0;
+  // Calculate total calories and total protein dynamically on the fly using .reduce() on foodEntries array
+  const caloriesIn = foodEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
+  const proteinIn = foodEntries.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
   const workoutBurned = Number(workoutLog.workout_calories_burned) || 0;
 
   // Net Calorie Deficit Calculation: (BMR + workout_calories_burned) - calories_in
