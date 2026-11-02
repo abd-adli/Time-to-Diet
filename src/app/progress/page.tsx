@@ -51,16 +51,17 @@ export default function ProgressPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const targetDate = selectedDate || formatDate(new Date());
       const [list, dl] = await Promise.all([
         getBodyProgressList(),
-        getDailyLog(selectedDate),
+        getDailyLog(targetDate),
       ]);
       setProgressList(list);
       setDailyLog(dl);
       setFastingHours(dl.fasting_hours !== undefined ? Number(dl.fasting_hours) : 0);
 
       // Pre-fill inputs if today's entry exists
-      const currentEntry = list.find((p) => p.log_date === selectedDate);
+      const currentEntry = list.find((p) => p.log_date === targetDate);
       if (currentEntry) {
         setInputWeight(String(currentEntry.weight_kg));
         setInputWaist(String(currentEntry.waist_cm));

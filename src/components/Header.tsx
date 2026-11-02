@@ -15,15 +15,19 @@ export function Header() {
     setTodayStr(formatDate(new Date()));
   }, []);
 
-  const isToday = todayStr ? selectedDate === todayStr : false;
+  const isToday = !selectedDate || (todayStr ? selectedDate === todayStr : true);
 
   // Format selected date nicely
-  const formattedSelectedDate = new Date(selectedDate + "T00:00:00").toLocaleDateString("id-ID", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const displayDateStr = selectedDate || todayStr;
+  const formattedSelectedDate =
+    displayDateStr && displayDateStr.includes("-")
+      ? new Date(displayDateStr + "T00:00:00").toLocaleDateString("id-ID", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "Hari Ini";
 
   return (
     <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3">

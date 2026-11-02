@@ -3,7 +3,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "@/context/AppContext";
 import { WorkoutLog, ExerciseItem } from "@/lib/types";
-import { getWorkoutLog, saveWorkoutLog, calculateWorkoutCalories } from "@/lib/storage";
+import {
+  getWorkoutLog,
+  saveWorkoutLog,
+  calculateWorkoutCalories,
+  getEmptyWorkoutLog,
+  formatDate,
+} from "@/lib/storage";
 import { WORKOUT_SPLITS, PRAYER_PLANKS } from "@/lib/constants";
 import { PlankTimerModal } from "@/components/PlankTimerModal";
 import {
@@ -38,8 +44,10 @@ export default function WorkoutPage() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const log = await getWorkoutLog(selectedDate);
-      setWorkoutLog(log);
+      const targetDate = selectedDate || formatDate(new Date());
+      const log = await getWorkoutLog(targetDate);
+      const cleanLog = log && log.log_date === targetDate ? log : getEmptyWorkoutLog(targetDate);
+      setWorkoutLog(cleanLog);
     } catch (err) {
       console.error("Failed to load workout log:", err);
     } finally {

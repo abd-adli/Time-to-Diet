@@ -9,6 +9,9 @@ import {
   getWorkoutLog,
   getBodyProgressList,
   getFoodEntries,
+  getEmptyDailyLog,
+  getEmptyWorkoutLog,
+  formatDate,
 } from "@/lib/storage";
 import { HeroCountdown } from "@/components/HeroCountdown";
 import { MacroSummary } from "@/components/MacroSummary";
@@ -35,16 +38,33 @@ export default function DashboardPage() {
 
   const loadData = useCallback(async () => {
     try {
+      const todayStr = formatDate(new Date());
+      // Strictly resolve targetDate: default to today's local date
+      const targetDate = selectedDate || todayStr;
+
       const [dl, wl, bp, fe] = await Promise.all([
-        getDailyLog(selectedDate),
-        getWorkoutLog(selectedDate),
+        getDailyLog(targetDate),
+        getWorkoutLog(targetDate),
         getBodyProgressList(),
-        getFoodEntries(selectedDate),
+        getFoodEntries(targetDate),
       ]);
-      setDailyLog(dl);
-      setWorkoutLog(wl);
+
+      // Strictly filter food logs array by today's local date before rendering the list or calculating totals
+      // Only return and calculate items where date matches today. Any data from yesterday or earlier is hidden from today's view.
+      const strictlyFilteredFood = (fe || []).filter((item) => item.log_date === targetDate);
+
+      // Strictly verify workout data by targetDate
+      const cleanWorkout =
+        wl && wl.log_date === targetDate ? wl : getEmptyWorkoutLog(targetDate);
+
+      // Strictly verify daily log by targetDate
+      const cleanDaily =
+        dl && dl.log_date === targetDate ? dl : getEmptyDailyLog(targetDate);
+
+      setDailyLog(cleanDaily);
+      setWorkoutLog(cleanWorkout);
       setBodyProgressList(bp);
-      setFoodEntries(fe);
+      setFoodEntries(strictlyFilteredFood);
     } catch (err) {
       console.error("Error loading dashboard data:", err);
     } finally {

@@ -22,18 +22,17 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  // Use a stable default date string during static prerender to prevent Next.js 16 prerender error
-  const [selectedDate, setSelectedDate] = useState<string>("2026-11-01");
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [userConfig, setUserConfigState] = useState<UserTargetConfig>(DEFAULT_USER_CONFIG);
   const [isSupabaseLive, setIsSupabaseLive] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [isMounted, setIsMounted] = useState<boolean>(false);
 
   useEffect(() => {
-    setIsMounted(true);
-    clearStaleStorageTotals();
     const todayStr = formatDate(new Date());
     setSelectedDate(todayStr);
+    setIsMounted(true);
+    clearStaleStorageTotals();
     setUserConfigState(getUserConfig());
     setIsSupabaseLive(isSupabaseConfigured());
   }, []);
@@ -55,7 +54,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const changeDateByDays = useCallback(
     (delta: number) => {
-      const [y, m, d] = selectedDate.split("-").map(Number);
+      const baseDate = selectedDate || formatDate(new Date());
+      const [y, m, d] = baseDate.split("-").map(Number);
       const cur = new Date(y, (m || 1) - 1, d || 1);
       cur.setDate(cur.getDate() + delta);
       setSelectedDate(formatDate(cur));

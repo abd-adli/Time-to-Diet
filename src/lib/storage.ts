@@ -32,13 +32,13 @@ const KEYS = {
 
 /**
  * Clear any existing state or local storage keys that hold hardcoded/stale total values.
- * Removes legacy ghost/seed entries and recalculates stored daily log totals strictly from
- * the food entries array via .reduce().
+ * Removes legacy ghost/seed entries, partitions logs into date-specific keys (e.g. logs_YYYY-MM-DD),
+ * and recalculates stored daily log totals strictly from the food entries array via .reduce().
  */
 export function clearStaleStorageTotals(): void {
   if (typeof window === "undefined") return;
   try {
-    // 1. Remove legacy / stale seed keys
+    // 1. Remove legacy / stale seed and total keys
     const staleKeys = [
       "road_to_jan16_seeded_v1",
       "road_to_jan16_seeded",
@@ -49,32 +49,86 @@ export function clearStaleStorageTotals(): void {
     ];
     staleKeys.forEach((key) => localStorage.removeItem(key));
 
-    // 2. Load food entries and remove any legacy dummy seed items (e.g. id starting with 'seed-fe-')
+    // 2. Clean food entries: remove any dummy seed entries (e.g. id starting with 'seed-fe-')
     const storedFood = localStorage.getItem(KEYS.FOOD_ENTRIES);
-    let allFood: FoodEntry[] = storedFood ? JSON.parse(storedFood) : [];
-    const cleanedFood = allFood.filter((item) => !item.id?.startsWith("seed-fe-"));
-
-    if (cleanedFood.length !== allFood.length) {
+    let cleanedFood: FoodEntry[] = [];
+    if (storedFood) {
+      const allFood: FoodEntry[] = JSON.parse(storedFood);
+      cleanedFood = allFood.filter((item) => !item.id?.startsWith("seed-fe-"));
       localStorage.setItem(KEYS.FOOD_ENTRIES, JSON.stringify(cleanedFood));
+
+      // Partition food entries by date
+      const dateMap: Record<string, FoodEntry[]> = {};
+      cleanedFood.forEach((item) => {
+        if (!dateMap[item.log_date]) dateMap[item.log_date] = [];
+        dateMap[item.log_date].push(item);
+      });
+      for (const [d, items] of Object.entries(dateMap)) {
+        localStorage.setItem(`road_to_jan16_food_entries_${d}`, JSON.stringify(items));
+      }
     }
 
-    // 3. Clean up daily logs so calories_in and protein_in strictly match food entries for every date
+    // 3. Clean and partition workout logs by date
+    const storedWorkouts = localStorage.getItem(KEYS.WORKOUT_LOGS);
+    if (storedWorkouts) {
+      const parsedWorkouts = JSON.parse(storedWorkouts);
+      if (parsedWorkouts && typeof parsedWorkouts === "object") {
+        if (parsedWorkouts.log_date && !parsedWorkouts[parsedWorkouts.log_date]) {
+          // Single record storage format
+          localStorage.setItem(
+            `road_to_jan16_workout_log_${parsedWorkouts.log_date}`,
+            JSON.stringify(parsedWorkouts)
+          );
+          localStorage.setItem(
+            KEYS.WORKOUT_LOGS,
+            JSON.stringify({ [parsedWorkouts.log_date]: parsedWorkouts })
+          );
+        } else {
+          for (const [d, w] of Object.entries(parsedWorkouts)) {
+            localStorage.setItem(`road_to_jan16_workout_log_${d}`, JSON.stringify(w));
+          }
+        }
+      }
+    }
+
+    // 4. Clean and partition daily logs by date
     const storedLogs = localStorage.getItem(KEYS.DAILY_LOGS);
     if (storedLogs) {
       const parsedLogs = JSON.parse(storedLogs);
-      if (typeof parsedLogs === "object" && parsedLogs !== null) {
-        for (const dateKey of Object.keys(parsedLogs)) {
-          const dayEntries = cleanedFood.filter((e) => e.log_date === dateKey);
+      if (parsedLogs && typeof parsedLogs === "object") {
+        if (parsedLogs.log_date && !parsedLogs[parsedLogs.log_date]) {
+          const dayEntries = cleanedFood.filter((e) => e.log_date === parsedLogs.log_date);
           const trueCalories = dayEntries.reduce((acc, curr) => acc + (Number(curr.calories) || 0), 0);
           const trueProtein = dayEntries.reduce((acc, curr) => acc + (Number(curr.protein) || 0), 0);
-
-          parsedLogs[dateKey] = {
-            ...parsedLogs[dateKey],
+          const cleanRecord = {
+            ...parsedLogs,
             calories_in: trueCalories,
             protein_in: trueProtein,
           };
+          localStorage.setItem(
+            `road_to_jan16_daily_log_${cleanRecord.log_date}`,
+            JSON.stringify(cleanRecord)
+          );
+          localStorage.setItem(
+            KEYS.DAILY_LOGS,
+            JSON.stringify({ [cleanRecord.log_date]: cleanRecord })
+          );
+        } else {
+          for (const [d, l] of Object.entries(parsedLogs)) {
+            const logItem: any = l;
+            const dayEntries = cleanedFood.filter((e) => e.log_date === d);
+            const trueCalories = dayEntries.reduce((acc, curr) => acc + (Number(curr.calories) || 0), 0);
+            const trueProtein = dayEntries.reduce((acc, curr) => acc + (Number(curr.protein) || 0), 0);
+            const cleanRecord = {
+              ...logItem,
+              calories_in: trueCalories,
+              protein_in: trueProtein,
+            };
+            localStorage.setItem(`road_to_jan16_daily_log_${d}`, JSON.stringify(cleanRecord));
+            parsedLogs[d] = cleanRecord;
+          }
+          localStorage.setItem(KEYS.DAILY_LOGS, JSON.stringify(parsedLogs));
         }
-        localStorage.setItem(KEYS.DAILY_LOGS, JSON.stringify(parsedLogs));
       }
     }
   } catch (e) {
@@ -171,23 +225,21 @@ export function saveUserConfig(config: UserTargetConfig): void {
 }
 
 // ==========================================
-// DAILY LOGS (TOTALS CALCULATED DYNAMICALLY ON THE FLY FROM FOOD ENTRIES)
+// DAILY LOGS (STRICTLY FILTERED BY TARGET DATE, NO OLD DATES LEAK)
 // ==========================================
 export async function getDailyLog(dateStr?: string): Promise<DailyLog> {
-  const targetDate = dateStr || formatDate(new Date());
-  const todayDateStr = formatDate(new Date());
-  const todayLocaleDateStr = new Date().toLocaleDateString();
+  const todayStr = formatDate(new Date());
+  const targetDate = dateStr || todayStr;
+
+  const emptyLog = getEmptyDailyLog(targetDate);
 
   // Dynamically calculate total calories and total protein on the fly from food entries array
   const foodEntries = await getFoodEntries(targetDate);
   const dynamicCaloriesIn = foodEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
   const dynamicProteinIn = foodEntries.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
 
-  const baseEmptyLog: DailyLog = {
-    ...getEmptyDailyLog(targetDate),
-    calories_in: dynamicCaloriesIn,
-    protein_in: dynamicProteinIn,
-  };
+  emptyLog.calories_in = dynamicCaloriesIn;
+  emptyLog.protein_in = dynamicProteinIn;
 
   const supabase = getSupabaseClient();
   if (supabase) {
@@ -199,14 +251,14 @@ export async function getDailyLog(dateStr?: string): Promise<DailyLog> {
         .maybeSingle();
 
       if (!error && data) {
-        const isTargetToday = targetDate === todayDateStr || targetDate === todayLocaleDateStr;
-        if (isTargetToday && data.log_date !== todayDateStr && data.log_date !== todayLocaleDateStr) {
-          return baseEmptyLog;
+        // Strictly ignore old dates: if stored log_date does not match targetDate, return emptyLog
+        if (data.log_date !== targetDate) {
+          return emptyLog;
         }
 
         return {
           id: data.id,
-          log_date: data.log_date,
+          log_date: targetDate,
           fasting_hours: Number(data.fasting_hours) || 0,
           calories_in: dynamicCaloriesIn, // Always dynamic from foodEntries.reduce()
           protein_in: dynamicProteinIn,   // Always dynamic from foodEntries.reduce()
@@ -223,38 +275,21 @@ export async function getDailyLog(dateStr?: string): Promise<DailyLog> {
     }
   }
 
-  // Fallback to LocalStorage
+  // Fallback to LocalStorage: strictly use date-specific key first
   if (typeof window !== "undefined") {
-    const stored = localStorage.getItem(KEYS.DAILY_LOGS);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        let record: DailyLog | undefined = parsed[targetDate];
-
-        if (!record && parsed.log_date) {
-          record = parsed;
-        }
-
-        if (record) {
-          const isTargetToday = targetDate === todayDateStr || targetDate === todayLocaleDateStr;
-          if (
-            isTargetToday &&
-            record.log_date !== todayDateStr &&
-            record.log_date !== todayLocaleDateStr
-          ) {
-            return baseEmptyLog;
-          }
-
-          if (record.log_date !== targetDate) {
-            return baseEmptyLog;
-          }
-
+    try {
+      // 1. Date-specific key: road_to_jan16_daily_log_YYYY-MM-DD
+      const specificKey = `road_to_jan16_daily_log_${targetDate}`;
+      const specificStored = localStorage.getItem(specificKey);
+      if (specificStored) {
+        const record = JSON.parse(specificStored);
+        if (record && record.log_date === targetDate) {
           return {
             id: record.id || `dl-${targetDate}`,
-            log_date: record.log_date || targetDate,
+            log_date: targetDate,
             fasting_hours: Number(record.fasting_hours) || 0,
-            calories_in: dynamicCaloriesIn, // Always dynamic from foodEntries.reduce()
-            protein_in: dynamicProteinIn,   // Always dynamic from foodEntries.reduce()
+            calories_in: dynamicCaloriesIn,
+            protein_in: dynamicProteinIn,
             carbs_in: Number(record.carbs_in) || 0,
             fat_in: Number(record.fat_in) || 0,
             creatine_taken: Boolean(record.creatine_taken),
@@ -263,17 +298,40 @@ export async function getDailyLog(dateStr?: string): Promise<DailyLog> {
             created_at: record.created_at,
           };
         }
-      } catch {
-        // ignore
       }
+
+      // 2. Legacy dictionary key strictly checked by targetDate
+      const stored = localStorage.getItem(KEYS.DAILY_LOGS);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const record = parsed[targetDate];
+        // Strictly ignore old dates: record.log_date must equal targetDate
+        if (record && record.log_date === targetDate) {
+          return {
+            id: record.id || `dl-${targetDate}`,
+            log_date: targetDate,
+            fasting_hours: Number(record.fasting_hours) || 0,
+            calories_in: dynamicCaloriesIn,
+            protein_in: dynamicProteinIn,
+            carbs_in: Number(record.carbs_in) || 0,
+            fat_in: Number(record.fat_in) || 0,
+            creatine_taken: Boolean(record.creatine_taken),
+            water_liters: Number(record.water_liters) || 0,
+            notes: record.notes || "",
+            created_at: record.created_at,
+          };
+        }
+      }
+    } catch {
+      // ignore
     }
   }
 
-  return baseEmptyLog;
+  return emptyLog;
 }
 
 export async function saveDailyLog(log: DailyLog): Promise<DailyLog> {
-  // Always derive calories_in and protein_in dynamically from food entries
+  // Always derive calories_in and protein_in dynamically from food entries for this date
   const foodEntries = await getFoodEntries(log.log_date);
   const dynamicCaloriesIn = foodEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
   const dynamicProteinIn = foodEntries.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
@@ -313,9 +371,14 @@ export async function saveDailyLog(log: DailyLog): Promise<DailyLog> {
     }
   }
 
-  // Always mirror to LocalStorage
+  // Save to date-specific key in LocalStorage
   if (typeof window !== "undefined") {
     try {
+      // 1. Date-specific key
+      const specificKey = `road_to_jan16_daily_log_${cleanLog.log_date}`;
+      localStorage.setItem(specificKey, JSON.stringify(cleanLog));
+
+      // 2. Mirror into dictionary
       const stored = localStorage.getItem(KEYS.DAILY_LOGS);
       const parsed = stored ? JSON.parse(stored) : {};
       parsed[cleanLog.log_date] = cleanLog;
@@ -329,10 +392,11 @@ export async function saveDailyLog(log: DailyLog): Promise<DailyLog> {
 }
 
 // ==========================================
-// FOOD ENTRIES
+// FOOD ENTRIES (STRICTLY FILTERED BY TARGET DATE)
 // ==========================================
 export async function getFoodEntries(dateStr?: string): Promise<FoodEntry[]> {
-  const targetDate = dateStr || formatDate(new Date());
+  const todayStr = formatDate(new Date());
+  const targetDate = dateStr || todayStr;
   const supabase = getSupabaseClient();
 
   if (supabase) {
@@ -344,32 +408,47 @@ export async function getFoodEntries(dateStr?: string): Promise<FoodEntry[]> {
         .order("created_at", { ascending: true });
 
       if (!error && data) {
-        return data.map((item) => ({
-          id: item.id,
-          log_date: item.log_date,
-          meal_name: item.meal_name,
-          calories: Number(item.calories) || 0,
-          protein: Number(item.protein) || 0,
-          is_ai_estimated: Boolean(item.is_ai_estimated),
-          created_at: item.created_at,
-        }));
+        // Strictly filter to ensure only items matching targetDate are returned
+        return data
+          .filter((item) => item.log_date === targetDate && !item.id?.startsWith("seed-fe-"))
+          .map((item) => ({
+            id: item.id,
+            log_date: item.log_date,
+            meal_name: item.meal_name,
+            calories: Number(item.calories) || 0,
+            protein: Number(item.protein) || 0,
+            is_ai_estimated: Boolean(item.is_ai_estimated),
+            created_at: item.created_at,
+          }));
       }
     } catch (e) {
       console.warn("Supabase getFoodEntries failed, falling back to local:", e);
     }
   }
 
-  // LocalStorage fallback
+  // Fallback to LocalStorage
   if (typeof window !== "undefined") {
-    const stored = localStorage.getItem(KEYS.FOOD_ENTRIES);
-    if (stored) {
-      try {
-        const all: FoodEntry[] = JSON.parse(stored);
-        // Exclude any ghost seed entries
-        return all.filter((entry) => entry.log_date === targetDate && !entry.id?.startsWith("seed-fe-"));
-      } catch {
-        // ignore
+    try {
+      // 1. Check date-specific key first: road_to_jan16_food_entries_YYYY-MM-DD
+      const specificKey = `road_to_jan16_food_entries_${targetDate}`;
+      const specificStored = localStorage.getItem(specificKey);
+      if (specificStored) {
+        const list: FoodEntry[] = JSON.parse(specificStored);
+        return list.filter(
+          (entry) => entry.log_date === targetDate && !entry.id?.startsWith("seed-fe-")
+        );
       }
+
+      // 2. Check general list, strictly filtering by targetDate
+      const stored = localStorage.getItem(KEYS.FOOD_ENTRIES);
+      if (stored) {
+        const all: FoodEntry[] = JSON.parse(stored);
+        return all.filter(
+          (entry) => entry.log_date === targetDate && !entry.id?.startsWith("seed-fe-")
+        );
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -415,16 +494,24 @@ export async function addFoodEntry(entry: Omit<FoodEntry, "id" | "created_at">):
     }
   }
 
-  // LocalStorage mirror
+  // LocalStorage with date-specific key & global mirror
   if (typeof window !== "undefined") {
     try {
+      // 1. Save to date-specific key
+      const specificKey = `road_to_jan16_food_entries_${entry.log_date}`;
+      const specificStored = localStorage.getItem(specificKey);
+      const specificList: FoodEntry[] = specificStored ? JSON.parse(specificStored) : [];
+      specificList.push(fullEntry);
+      localStorage.setItem(specificKey, JSON.stringify(specificList));
+
+      // 2. Mirror into all food entries
       const stored = localStorage.getItem(KEYS.FOOD_ENTRIES);
       const all: FoodEntry[] = stored ? JSON.parse(stored) : [];
       all.push(fullEntry);
       localStorage.setItem(KEYS.FOOD_ENTRIES, JSON.stringify(all));
 
-      // Calculate totals dynamically on the fly from the updated array
-      const dateEntries = all.filter((e) => e.log_date === entry.log_date && !e.id?.startsWith("seed-fe-"));
+      // 3. Update daily log dynamic totals strictly from this date's entries
+      const dateEntries = specificList.filter((e) => e.log_date === entry.log_date && !e.id?.startsWith("seed-fe-"));
       const dynamicCalories = dateEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
       const dynamicProtein = dateEntries.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
 
@@ -453,22 +540,33 @@ export async function deleteFoodEntry(id: string, dateStr: string): Promise<void
 
   if (typeof window !== "undefined") {
     try {
+      // 1. Delete from date-specific key
+      const specificKey = `road_to_jan16_food_entries_${dateStr}`;
+      const specificStored = localStorage.getItem(specificKey);
+      let remainingSpecific: FoodEntry[] = [];
+      if (specificStored) {
+        const specificList: FoodEntry[] = JSON.parse(specificStored);
+        remainingSpecific = specificList.filter((e) => e.id !== id);
+        localStorage.setItem(specificKey, JSON.stringify(remainingSpecific));
+      }
+
+      // 2. Delete from all food list
       const stored = localStorage.getItem(KEYS.FOOD_ENTRIES);
       if (stored) {
         const all: FoodEntry[] = JSON.parse(stored);
         const filtered = all.filter((e) => e.id !== id);
         localStorage.setItem(KEYS.FOOD_ENTRIES, JSON.stringify(filtered));
-
-        // Calculate totals dynamically on the fly from remaining items
-        const dateEntries = filtered.filter((e) => e.log_date === dateStr && !e.id?.startsWith("seed-fe-"));
-        const dynamicCalories = dateEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
-        const dynamicProtein = dateEntries.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
-
-        const currentDailyLog = await getDailyLog(dateStr);
-        currentDailyLog.calories_in = dynamicCalories;
-        currentDailyLog.protein_in = dynamicProtein;
-        await saveDailyLog(currentDailyLog);
       }
+
+      // 3. Recalculate daily totals strictly from remaining items for this date
+      const dateEntries = remainingSpecific.filter((e) => e.log_date === dateStr && !e.id?.startsWith("seed-fe-"));
+      const dynamicCalories = dateEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
+      const dynamicProtein = dateEntries.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
+
+      const currentDailyLog = await getDailyLog(dateStr);
+      currentDailyLog.calories_in = dynamicCalories;
+      currentDailyLog.protein_in = dynamicProtein;
+      await saveDailyLog(currentDailyLog);
     } catch {
       // ignore
     }
@@ -476,12 +574,11 @@ export async function deleteFoodEntry(id: string, dateStr: string): Promise<void
 }
 
 // ==========================================
-// WORKOUT LOGS
+// WORKOUT LOGS (STRICTLY FILTERED BY TARGET DATE, NO OLD DATES LEAK)
 // ==========================================
 export async function getWorkoutLog(dateStr?: string): Promise<WorkoutLog> {
-  const targetDate = dateStr || formatDate(new Date());
-  const todayDateStr = formatDate(new Date());
-  const todayLocaleDateStr = new Date().toLocaleDateString();
+  const todayStr = formatDate(new Date());
+  const targetDate = dateStr || todayStr;
 
   const emptyLog = getEmptyWorkoutLog(targetDate);
   const supabase = getSupabaseClient();
@@ -495,14 +592,14 @@ export async function getWorkoutLog(dateStr?: string): Promise<WorkoutLog> {
         .maybeSingle();
 
       if (!error && data) {
-        const isTargetToday = targetDate === todayDateStr || targetDate === todayLocaleDateStr;
-        if (isTargetToday && data.log_date !== todayDateStr && data.log_date !== todayLocaleDateStr) {
+        // Strictly ignore old dates: log_date must match targetDate exactly
+        if (data.log_date !== targetDate) {
           return emptyLog;
         }
 
         return {
           id: data.id,
-          log_date: data.log_date,
+          log_date: targetDate,
           split_category: data.split_category || "Push Day",
           exercises: Array.isArray(data.exercises) ? data.exercises : [],
           cardio_minutes: Number(data.cardio_minutes) || 0,
@@ -521,35 +618,18 @@ export async function getWorkoutLog(dateStr?: string): Promise<WorkoutLog> {
     }
   }
 
-  // LocalStorage fallback
+  // Fallback to LocalStorage: strictly use date-specific key first
   if (typeof window !== "undefined") {
-    const stored = localStorage.getItem(KEYS.WORKOUT_LOGS);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        let record = parsed[targetDate];
-
-        if (!record && parsed.log_date) {
-          record = parsed;
-        }
-
-        if (record) {
-          const isTargetToday = targetDate === todayDateStr || targetDate === todayLocaleDateStr;
-          if (
-            isTargetToday &&
-            record.log_date !== todayDateStr &&
-            record.log_date !== todayLocaleDateStr
-          ) {
-            return emptyLog;
-          }
-
-          if (record.log_date !== targetDate) {
-            return emptyLog;
-          }
-
+    try {
+      // 1. Date-specific key: road_to_jan16_workout_log_YYYY-MM-DD
+      const specificKey = `road_to_jan16_workout_log_${targetDate}`;
+      const specificStored = localStorage.getItem(specificKey);
+      if (specificStored) {
+        const record = JSON.parse(specificStored);
+        if (record && record.log_date === targetDate) {
           return {
             id: record.id || `wl-${targetDate}`,
-            log_date: record.log_date || targetDate,
+            log_date: targetDate,
             split_category: record.split_category || "Push Day",
             exercises: Array.isArray(record.exercises) ? record.exercises : [],
             cardio_minutes: Number(record.cardio_minutes) || 0,
@@ -563,9 +643,34 @@ export async function getWorkoutLog(dateStr?: string): Promise<WorkoutLog> {
             created_at: record.created_at,
           };
         }
-      } catch {
-        // ignore
       }
+
+      // 2. Legacy dictionary key strictly checked by targetDate
+      const stored = localStorage.getItem(KEYS.WORKOUT_LOGS);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const record = parsed[targetDate];
+        // Strictly ignore old dates
+        if (record && record.log_date === targetDate) {
+          return {
+            id: record.id || `wl-${targetDate}`,
+            log_date: targetDate,
+            split_category: record.split_category || "Push Day",
+            exercises: Array.isArray(record.exercises) ? record.exercises : [],
+            cardio_minutes: Number(record.cardio_minutes) || 0,
+            plank_subuh: Boolean(record.plank_subuh),
+            plank_dzuhur: Boolean(record.plank_dzuhur),
+            plank_ashar: Boolean(record.plank_ashar),
+            plank_maghrib: Boolean(record.plank_maghrib),
+            plank_isya: Boolean(record.plank_isya),
+            recovery_rating: Number(record.recovery_rating) || 3,
+            workout_calories_burned: Number(record.workout_calories_burned) || 0,
+            created_at: record.created_at,
+          };
+        }
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -605,9 +710,14 @@ export async function saveWorkoutLog(log: WorkoutLog): Promise<WorkoutLog> {
     }
   }
 
-  // LocalStorage mirror
+  // Save to date-specific key in LocalStorage
   if (typeof window !== "undefined") {
     try {
+      // 1. Date-specific key
+      const specificKey = `road_to_jan16_workout_log_${log.log_date}`;
+      localStorage.setItem(specificKey, JSON.stringify(log));
+
+      // 2. Mirror into dictionary
       const stored = localStorage.getItem(KEYS.WORKOUT_LOGS);
       const parsed = stored ? JSON.parse(stored) : {};
       parsed[log.log_date] = log;
@@ -732,7 +842,7 @@ export async function getDailyChartData(daysBack: number = 14): Promise<DailyCha
   const result: DailyChartDataPoint[] = [];
   const today = new Date();
 
-  // Load all daily logs and workout logs
+  // Load all daily logs and workout logs strictly for each specific date
   for (let i = daysBack - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
@@ -741,7 +851,7 @@ export async function getDailyChartData(daysBack: number = 14): Promise<DailyCha
     const foodEntries = await getFoodEntries(dateStr);
     const workoutLog = await getWorkoutLog(dateStr);
 
-    // Calculate caloriesIn dynamically from food entries
+    // Calculate caloriesIn dynamically from food entries strictly for this date
     const caloriesIn = foodEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
     const caloriesBurned = Number(workoutLog.workout_calories_burned) || 0;
     const totalExpenditure = bmr + caloriesBurned;
