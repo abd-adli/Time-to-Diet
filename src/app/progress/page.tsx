@@ -57,7 +57,7 @@ export default function ProgressPage() {
       ]);
       setProgressList(list);
       setDailyLog(dl);
-      setFastingHours(Number(dl.fasting_hours) || 16);
+      setFastingHours(dl.fasting_hours !== undefined ? Number(dl.fasting_hours) : 0);
 
       // Pre-fill inputs if today's entry exists
       const currentEntry = list.find((p) => p.log_date === selectedDate);

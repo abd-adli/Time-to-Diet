@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "@/context/AppContext";
 import { WorkoutLog, ExerciseItem } from "@/lib/types";
-import { getWorkoutLog, saveWorkoutLog } from "@/lib/storage";
+import { getWorkoutLog, saveWorkoutLog, calculateWorkoutCalories } from "@/lib/storage";
 import { WORKOUT_SPLITS, PRAYER_PLANKS } from "@/lib/constants";
 import { PlankTimerModal } from "@/components/PlankTimerModal";
 import {
@@ -22,7 +22,7 @@ import {
 import confetti from "canvas-confetti";
 
 export default function WorkoutPage() {
-  const { selectedDate, refreshKey, triggerRefresh } = useApp();
+  const { selectedDate, refreshKey, triggerRefresh, userConfig } = useApp();
 
   const [workoutLog, setWorkoutLog] = useState<WorkoutLog | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,7 +72,7 @@ export default function WorkoutPage() {
       workout_calories_burned:
         workoutLog.workout_calories_burned > 0
           ? workoutLog.workout_calories_burned
-          : splitConfig.defaultCaloriesBurned,
+          : 0,
     };
     setWorkoutLog(updated);
   };
@@ -220,6 +220,51 @@ export default function WorkoutPage() {
               <span className="text-xs text-slate-400 font-medium">kcal</span>
             </div>
             <p className="text-[10px] text-slate-400">Nilai murni integer untuk kalkulasi defisit.</p>
+            {/* Quick MET-based Auto-Calculator */}
+            <div className="pt-1.5">
+              <span className="text-[10px] text-slate-400 block mb-1">
+                Kalkulator MET Otomatis (BB: {userConfig.startingWeight} kg):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const burned = calculateWorkoutCalories(userConfig.startingWeight, 60, "weightlifting");
+                    setWorkoutLog({ ...workoutLog, workout_calories_burned: burned });
+                  }}
+                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] text-emerald-400 font-semibold rounded-lg border border-slate-700 transition-colors"
+                  title="5.5 MET x Berat x 60 menit"
+                >
+                  Beban 60m (5.5 MET)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const mins = workoutLog.cardio_minutes > 0 ? workoutLog.cardio_minutes : 30;
+                    const burned = calculateWorkoutCalories(userConfig.startingWeight, mins, "incline_walk");
+                    setWorkoutLog({ ...workoutLog, workout_calories_burned: burned, cardio_minutes: mins });
+                  }}
+                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] text-blue-400 font-semibold rounded-lg border border-slate-700 transition-colors"
+                  title="7.5 MET x Berat x menit"
+                >
+                  Incline Walk {workoutLog.cardio_minutes > 0 ? `${workoutLog.cardio_minutes}m` : "30m"} (7.5 MET)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const burned = calculateWorkoutCalories(userConfig.startingWeight, 15, "core");
+                    setWorkoutLog({
+                      ...workoutLog,
+                      workout_calories_burned: (workoutLog.workout_calories_burned || 0) + burned,
+                    });
+                  }}
+                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] text-amber-400 font-semibold rounded-lg border border-slate-700 transition-colors"
+                  title="3.8 MET x Berat x 15 menit"
+                >
+                  Core/Plank 15m (3.8 MET)
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 

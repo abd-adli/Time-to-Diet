@@ -1,4 +1,4 @@
-import { getSupabaseClient, isSupabaseConfigured } from "./supabase";
+import { getSupabaseClient } from "./supabase";
 import {
   DailyLog,
   FoodEntry,
@@ -28,133 +28,70 @@ const KEYS = {
   FOOD_ENTRIES: "road_to_jan16_food_entries",
   WORKOUT_LOGS: "road_to_jan16_workout_logs",
   BODY_PROGRESS: "road_to_jan16_body_progress",
-  SEEDED: "road_to_jan16_seeded_v1",
 };
 
-// Seed initial realistic data for LocalStorage/Demo mode if empty
-export function seedInitialLocalData(): void {
-  if (typeof window === "undefined") return;
-  if (localStorage.getItem(KEYS.SEEDED)) return;
+/**
+ * Calculates burned calories using standard MET (Metabolic Equivalent of Task) values:
+ * - 'weightlifting': 5.5 MET
+ * - 'incline_walk': 7.5 MET
+ * - 'core': 3.8 MET
+ *
+ * Formula: Calories Burned = MET * Weight (kg) * (Duration in minutes / 60)
+ */
+export function calculateWorkoutCalories(
+  weightKg: number,
+  durationMinutes: number,
+  type: "weightlifting" | "incline_walk" | "core"
+): number {
+  const metValues: Record<"weightlifting" | "incline_walk" | "core", number> = {
+    weightlifting: 5.5,
+    incline_walk: 7.5,
+    core: 3.8,
+  };
 
-  const today = new Date();
-  const todayStr = formatDate(today);
+  const met = metValues[type] ?? 5.5;
+  const durationHours = Math.max(0, Number(durationMinutes) || 0) / 60;
+  const weight = Math.max(0, Number(weightKg) || 0);
 
-  // Body progress seed (last 14 days)
-  const bodyProgressSeed: BodyProgress[] = [];
-  const weights = [105.0, 104.6, 104.2, 104.0, 103.7, 103.4, 103.0, 102.8, 102.5];
-  const waists = [110.0, 109.5, 109.0, 108.6, 108.2, 107.8, 107.5, 107.2, 106.8];
+  return Math.round(met * weight * durationHours);
+}
 
-  for (let i = 8; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i * 2);
-    bodyProgressSeed.push({
-      id: `seed-bp-${i}`,
-      log_date: formatDate(d),
-      weight_kg: weights[8 - i],
-      waist_cm: waists[8 - i],
-      created_at: d.toISOString(),
-    });
-  }
-  localStorage.setItem(KEYS.BODY_PROGRESS, JSON.stringify(bodyProgressSeed));
+/**
+ * Helper to return a clean empty daily log with all macros & calories set to 0
+ */
+export function getEmptyDailyLog(dateStr: string = formatDate(new Date())): DailyLog {
+  return {
+    id: `dl-${dateStr}`,
+    log_date: dateStr,
+    fasting_hours: 0,
+    calories_in: 0,
+    protein_in: 0,
+    carbs_in: 0,
+    fat_in: 0,
+    creatine_taken: false,
+    water_liters: 0,
+    notes: "",
+  };
+}
 
-  // Daily logs and workout logs for the past 7 days
-  const dailyLogsSeed: Record<string, DailyLog> = {};
-  const workoutLogsSeed: Record<string, WorkoutLog> = {};
-  const foodEntriesSeed: FoodEntry[] = [];
-
-  const splits = ["Push Day", "Pull Day", "Legs Day", "Rest / Recovery", "Push Day", "Pull Day", "Legs Day"];
-  const caloriesBurnedList = [420, 440, 510, 150, 430, 450, 520];
-
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const dateStr = formatDate(d);
-
-    const isToday = i === 0;
-    const calIn = isToday ? 0 : 0;
-    const protIn = isToday ? 0 : 0;
-
-    dailyLogsSeed[dateStr] = {
-      id: `seed-dl-${dateStr}`,
-      log_date: dateStr,
-      fasting_hours: 16.0,
-      calories_in: calIn,
-      protein_in: protIn,
-      carbs_in: 120,
-      fat_in: 45,
-      creatine_taken: true,
-      water_liters: 3.0,
-      notes: isToday ? "Feeling strong, intermittent fast smooth" : "Good recovery, hydration on point",
-    };
-
-    const splitName = splits[6 - i] || "Push Day";
-    const splitConfig = WORKOUT_SPLITS[splitName] || WORKOUT_SPLITS["Push Day"];
-
-    workoutLogsSeed[dateStr] = {
-      id: `seed-wl-${dateStr}`,
-      log_date: dateStr,
-      split_category: splitName,
-      exercises: splitConfig.templates.map((t) => ({ ...t, completed: true })),
-      cardio_minutes: 20,
-      plank_subuh: true,
-      plank_dzuhur: true,
-      plank_ashar: true,
-      plank_maghrib: !isToday || true,
-      plank_isya: !isToday,
-      recovery_rating: 4,
-      workout_calories_burned: caloriesBurnedList[6 - i] || 400,
-    };
-
-    if (isToday) {
-      foodEntriesSeed.push(
-        {
-          id: "seed-fe-1",
-          log_date: dateStr,
-          meal_name: "Kent Soy Protein (50g) + Stevia",
-          calories: 203,
-          protein: 21,
-          is_ai_estimated: false,
-        },
-        {
-          id: "seed-fe-2",
-          log_date: dateStr,
-          meal_name: "2 Telur Ayam Rebus & Nasi Merah 100g",
-          calories: 266,
-          protein: 15,
-          is_ai_estimated: false,
-        },
-        {
-          id: "seed-fe-3",
-          log_date: dateStr,
-          meal_name: "1 Ekor Ikan Kembung Bakar + Sayur Bayam",
-          calories: 280,
-          protein: 26,
-          is_ai_estimated: true,
-        },
-        {
-          id: "seed-fe-4",
-          log_date: dateStr,
-          meal_name: "Dada Ayam Fillet 200g + Sambal Tomat",
-          calories: 380,
-          protein: 42,
-          is_ai_estimated: true,
-        },
-        {
-          id: "seed-fe-5",
-          log_date: dateStr,
-          meal_name: "Tempe Kukus 120g",
-          calories: 251,
-          protein: 12,
-          is_ai_estimated: false,
-        }
-      );
-    }
-  }
-
-  localStorage.setItem(KEYS.DAILY_LOGS, JSON.stringify(dailyLogsSeed));
-  localStorage.setItem(KEYS.WORKOUT_LOGS, JSON.stringify(workoutLogsSeed));
-  localStorage.setItem(KEYS.FOOD_ENTRIES, JSON.stringify(foodEntriesSeed));
-  localStorage.setItem(KEYS.SEEDED, "true");
+/**
+ * Helper to return a clean empty workout log with burned calories set to 0
+ */
+export function getEmptyWorkoutLog(dateStr: string = formatDate(new Date())): WorkoutLog {
+  return {
+    id: `wl-${dateStr}`,
+    log_date: dateStr,
+    split_category: "Push Day",
+    exercises: (WORKOUT_SPLITS["Push Day"]?.templates || []).map((t) => ({ ...t, completed: false })),
+    cardio_minutes: 0,
+    plank_subuh: false,
+    plank_dzuhur: false,
+    plank_ashar: false,
+    plank_maghrib: false,
+    plank_isya: false,
+    recovery_rating: 3,
+    workout_calories_burned: 0,
+  };
 }
 
 // ==========================================
@@ -177,32 +114,31 @@ export function saveUserConfig(config: UserTargetConfig): void {
 }
 
 // ==========================================
-// DAILY LOGS
+// DAILY LOGS (WITH AUTOMATIC DAILY RESET LOGIC)
 // ==========================================
-export async function getDailyLog(dateStr: string): Promise<DailyLog> {
-  const supabase = getSupabaseClient();
-  const defaultLog: DailyLog = {
-    id: `dl-${dateStr}`,
-    log_date: dateStr,
-    fasting_hours: 16.0,
-    calories_in: 0,
-    protein_in: 0,
-    carbs_in: 0,
-    fat_in: 0,
-    creatine_taken: false,
-    water_liters: 0,
-    notes: "",
-  };
+export async function getDailyLog(dateStr?: string): Promise<DailyLog> {
+  const targetDate = dateStr || formatDate(new Date());
+  const todayDateStr = formatDate(new Date());
+  const todayLocaleDateStr = new Date().toLocaleDateString();
 
+  const emptyLog = getEmptyDailyLog(targetDate);
+
+  const supabase = getSupabaseClient();
   if (supabase) {
     try {
       const { data, error } = await supabase
         .from("daily_logs")
         .select("*")
-        .eq("log_date", dateStr)
+        .eq("log_date", targetDate)
         .maybeSingle();
 
       if (!error && data) {
+        // Automatic daily reset: if querying today, ensure stored log_date matches today
+        const isTargetToday = targetDate === todayDateStr || targetDate === todayLocaleDateStr;
+        if (isTargetToday && data.log_date !== todayDateStr && data.log_date !== todayLocaleDateStr) {
+          return emptyLog;
+        }
+
         return {
           id: data.id,
           log_date: data.log_date,
@@ -224,13 +160,47 @@ export async function getDailyLog(dateStr: string): Promise<DailyLog> {
 
   // Fallback to LocalStorage
   if (typeof window !== "undefined") {
-    seedInitialLocalData();
     const stored = localStorage.getItem(KEYS.DAILY_LOGS);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        if (parsed[dateStr]) {
-          return parsed[dateStr];
+
+        // Check if stored is a dictionary keyed by date or a single record
+        let record: DailyLog | undefined = parsed[targetDate];
+
+        if (!record && parsed.log_date) {
+          // Single record storage format
+          record = parsed;
+        }
+
+        if (record) {
+          // Automatic daily reset: if the stored log_date does not match today's date / target date
+          const isTargetToday = targetDate === todayDateStr || targetDate === todayLocaleDateStr;
+          if (
+            isTargetToday &&
+            record.log_date !== todayDateStr &&
+            record.log_date !== todayLocaleDateStr
+          ) {
+            return emptyLog;
+          }
+
+          if (record.log_date !== targetDate) {
+            return emptyLog;
+          }
+
+          return {
+            id: record.id || `dl-${targetDate}`,
+            log_date: record.log_date || targetDate,
+            fasting_hours: Number(record.fasting_hours) || 0,
+            calories_in: Number(record.calories_in) || 0,
+            protein_in: Number(record.protein_in) || 0,
+            carbs_in: Number(record.carbs_in) || 0,
+            fat_in: Number(record.fat_in) || 0,
+            creatine_taken: Boolean(record.creatine_taken),
+            water_liters: Number(record.water_liters) || 0,
+            notes: record.notes || "",
+            created_at: record.created_at,
+          };
         }
       } catch {
         // ignore
@@ -238,7 +208,8 @@ export async function getDailyLog(dateStr: string): Promise<DailyLog> {
     }
   }
 
-  return defaultLog;
+  // Return clean empty log with all macros/calories set to 0
+  return emptyLog;
 }
 
 export async function saveDailyLog(log: DailyLog): Promise<DailyLog> {
@@ -290,7 +261,8 @@ export async function saveDailyLog(log: DailyLog): Promise<DailyLog> {
 // ==========================================
 // FOOD ENTRIES
 // ==========================================
-export async function getFoodEntries(dateStr: string): Promise<FoodEntry[]> {
+export async function getFoodEntries(dateStr?: string): Promise<FoodEntry[]> {
+  const targetDate = dateStr || formatDate(new Date());
   const supabase = getSupabaseClient();
 
   if (supabase) {
@@ -298,7 +270,7 @@ export async function getFoodEntries(dateStr: string): Promise<FoodEntry[]> {
       const { data, error } = await supabase
         .from("food_entries")
         .select("*")
-        .eq("log_date", dateStr)
+        .eq("log_date", targetDate)
         .order("created_at", { ascending: true });
 
       if (!error && data) {
@@ -319,12 +291,11 @@ export async function getFoodEntries(dateStr: string): Promise<FoodEntry[]> {
 
   // LocalStorage fallback
   if (typeof window !== "undefined") {
-    seedInitialLocalData();
     const stored = localStorage.getItem(KEYS.FOOD_ENTRIES);
     if (stored) {
       try {
         const all: FoodEntry[] = JSON.parse(stored);
-        return all.filter((entry) => entry.log_date === dateStr);
+        return all.filter((entry) => entry.log_date === targetDate);
       } catch {
         // ignore
       }
@@ -443,32 +414,28 @@ export async function deleteFoodEntry(id: string, dateStr: string): Promise<void
 // ==========================================
 // WORKOUT LOGS
 // ==========================================
-export async function getWorkoutLog(dateStr: string): Promise<WorkoutLog> {
+export async function getWorkoutLog(dateStr?: string): Promise<WorkoutLog> {
+  const targetDate = dateStr || formatDate(new Date());
+  const todayDateStr = formatDate(new Date());
+  const todayLocaleDateStr = new Date().toLocaleDateString();
+
+  const emptyLog = getEmptyWorkoutLog(targetDate);
   const supabase = getSupabaseClient();
-  const defaultLog: WorkoutLog = {
-    id: `wl-${dateStr}`,
-    log_date: dateStr,
-    split_category: "Push Day",
-    exercises: (WORKOUT_SPLITS["Push Day"]?.templates || []).map((t) => ({ ...t })),
-    cardio_minutes: 0,
-    plank_subuh: false,
-    plank_dzuhur: false,
-    plank_ashar: false,
-    plank_maghrib: false,
-    plank_isya: false,
-    recovery_rating: 3,
-    workout_calories_burned: 0,
-  };
 
   if (supabase) {
     try {
       const { data, error } = await supabase
         .from("workout_logs")
         .select("*")
-        .eq("log_date", dateStr)
+        .eq("log_date", targetDate)
         .maybeSingle();
 
       if (!error && data) {
+        const isTargetToday = targetDate === todayDateStr || targetDate === todayLocaleDateStr;
+        if (isTargetToday && data.log_date !== todayDateStr && data.log_date !== todayLocaleDateStr) {
+          return emptyLog;
+        }
+
         return {
           id: data.id,
           log_date: data.log_date,
@@ -492,13 +459,45 @@ export async function getWorkoutLog(dateStr: string): Promise<WorkoutLog> {
 
   // LocalStorage fallback
   if (typeof window !== "undefined") {
-    seedInitialLocalData();
     const stored = localStorage.getItem(KEYS.WORKOUT_LOGS);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        if (parsed[dateStr]) {
-          return parsed[dateStr];
+        let record = parsed[targetDate];
+
+        if (!record && parsed.log_date) {
+          record = parsed;
+        }
+
+        if (record) {
+          const isTargetToday = targetDate === todayDateStr || targetDate === todayLocaleDateStr;
+          if (
+            isTargetToday &&
+            record.log_date !== todayDateStr &&
+            record.log_date !== todayLocaleDateStr
+          ) {
+            return emptyLog;
+          }
+
+          if (record.log_date !== targetDate) {
+            return emptyLog;
+          }
+
+          return {
+            id: record.id || `wl-${targetDate}`,
+            log_date: record.log_date || targetDate,
+            split_category: record.split_category || "Push Day",
+            exercises: Array.isArray(record.exercises) ? record.exercises : [],
+            cardio_minutes: Number(record.cardio_minutes) || 0,
+            plank_subuh: Boolean(record.plank_subuh),
+            plank_dzuhur: Boolean(record.plank_dzuhur),
+            plank_ashar: Boolean(record.plank_ashar),
+            plank_maghrib: Boolean(record.plank_maghrib),
+            plank_isya: Boolean(record.plank_isya),
+            recovery_rating: Number(record.recovery_rating) || 3,
+            workout_calories_burned: Number(record.workout_calories_burned) || 0,
+            created_at: record.created_at,
+          };
         }
       } catch {
         // ignore
@@ -506,7 +505,7 @@ export async function getWorkoutLog(dateStr: string): Promise<WorkoutLog> {
     }
   }
 
-  return defaultLog;
+  return emptyLog;
 }
 
 export async function saveWorkoutLog(log: WorkoutLog): Promise<WorkoutLog> {
@@ -586,7 +585,6 @@ export async function getBodyProgressList(): Promise<BodyProgress[]> {
 
   // LocalStorage fallback
   if (typeof window !== "undefined") {
-    seedInitialLocalData();
     const stored = localStorage.getItem(KEYS.BODY_PROGRESS);
     if (stored) {
       try {

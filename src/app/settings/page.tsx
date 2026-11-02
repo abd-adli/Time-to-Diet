@@ -136,10 +136,10 @@ export default function SettingsPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Reset to initial demo data
-  const handleResetDemo = () => {
+  // Reset all local storage data
+  const handleResetData = () => {
     if (typeof window === "undefined") return;
-    if (confirm("Reset ulang semua data ke data awal simulasi cutting?")) {
+    if (confirm("Hapus dan reset ulang semua data lokal?")) {
       localStorage.clear();
       window.location.reload();
     }
@@ -428,11 +428,11 @@ export default function SettingsPage() {
           </button>
 
           <button
-            onClick={handleResetDemo}
+            onClick={handleResetData}
             className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold rounded-xl border border-rose-500/30 flex items-center space-x-2 transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>Reset ke Data Demo Awal</span>
+            <span>Reset / Bersihkan Semua Data</span>
           </button>
         </div>
       </div>

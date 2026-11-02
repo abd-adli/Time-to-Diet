@@ -132,49 +132,4 @@ CREATE POLICY "Allow all access to workout_logs" ON public.workout_logs FOR ALL 
 DROP POLICY IF EXISTS "Allow all access to body_progress" ON public.body_progress;
 CREATE POLICY "Allow all access to body_progress" ON public.body_progress FOR ALL USING (true) WITH CHECK (true);
 
--- ==============================================================================
--- SEED INITIAL SAMPLE DATA (Starting checkpoint & Today's baseline)
--- Starting Baseline: 105 kg, Waist: 110 cm
--- ==============================================================================
-INSERT INTO public.body_progress (log_date, weight_kg, waist_cm)
-VALUES 
-    (CURRENT_DATE - INTERVAL '14 days', 105.0, 110.0),
-    (CURRENT_DATE - INTERVAL '7 days', 103.8, 108.5),
-    (CURRENT_DATE, 102.5, 107.0)
-ON CONFLICT (log_date) DO NOTHING;
 
-INSERT INTO public.daily_logs (log_date, fasting_hours, calories_in, protein_in, carbs_in, fat_in, creatine_taken, water_liters, notes)
-VALUES 
-    (CURRENT_DATE, 16.0, 1480, 118, 120, 42, true, 3.2, 'Energy feeling high, 16h fast smooth.')
-ON CONFLICT (log_date) DO NOTHING;
-
-INSERT INTO public.food_entries (log_date, meal_name, calories, protein, is_ai_estimated)
-VALUES
-    (CURRENT_DATE, 'Kent Soy Protein (50g) + Stevia', 203, 21, false),
-    (CURRENT_DATE, '2 Telur Ayam Rebus + Nasi Merah 100g', 265, 15, false),
-    (CURRENT_DATE, '1 Ekor Ikan Kembung Bakar + Sayur Bayam', 280, 26, true),
-    (CURRENT_DATE, 'Dada Ayam Panggang 150g + Terong Teri', 450, 42, true),
-    (CURRENT_DATE, 'Tempe Kukus 100g & Sambal Tomat', 282, 14, false)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO public.workout_logs (
-    log_date, split_category, exercises, cardio_minutes, 
-    plank_subuh, plank_dzuhur, plank_ashar, plank_maghrib, plank_isya, 
-    recovery_rating, workout_calories_burned
-)
-VALUES (
-    CURRENT_DATE,
-    'Push Day',
-    '[
-        {"name": "Incline Dumbbell Press", "sets": 4, "reps": 10, "weight_kg": 24},
-        {"name": "Flat Dumbbell Bench", "sets": 3, "reps": 12, "weight_kg": 26},
-        {"name": "Standing Dumbbell Overhead Press", "sets": 3, "reps": 10, "weight_kg": 16},
-        {"name": "Dumbbell Lateral Raises", "sets": 4, "reps": 15, "weight_kg": 8},
-        {"name": "Tricep Rope Pushdowns", "sets": 4, "reps": 12, "weight_kg": 22}
-    ]'::jsonb,
-    25,
-    true, true, true, false, false,
-    4,
-    450
-)
-ON CONFLICT (log_date) DO NOTHING;
