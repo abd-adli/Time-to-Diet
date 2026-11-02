@@ -9,7 +9,7 @@ import {
   deleteFoodEntry,
   getDailyLog,
   saveDailyLog,
-  formatDate,
+  getTodayKey,
 } from "@/lib/storage";
 import { QUICK_ADD_PRESETS, INDONESIAN_CUTTING_FOODS } from "@/lib/constants";
 import { compressImageToBase64 } from "@/lib/image-compress";
@@ -54,7 +54,7 @@ export default function FoodPage() {
   const loadEntries = useCallback(async () => {
     setIsLoading(true);
     try {
-      const targetDate = selectedDate || formatDate(new Date());
+      const targetDate = selectedDate || getTodayKey();
       const list = await getFoodEntries(targetDate);
       setFoodEntries((list || []).filter((item) => item.log_date === targetDate));
     } catch (err) {

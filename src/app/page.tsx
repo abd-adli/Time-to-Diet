@@ -11,7 +11,7 @@ import {
   getFoodEntries,
   getEmptyDailyLog,
   getEmptyWorkoutLog,
-  formatDate,
+  getTodayKey,
 } from "@/lib/storage";
 import { HeroCountdown } from "@/components/HeroCountdown";
 import { MacroSummary } from "@/components/MacroSummary";
@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 
 export default function DashboardPage() {
-  const { selectedDate, refreshKey, triggerRefresh } = useApp();
+  const { refreshKey, triggerRefresh } = useApp();
 
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [workoutLog, setWorkoutLog] = useState<WorkoutLog | null>(null);
@@ -36,51 +36,47 @@ export default function DashboardPage() {
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadData = useCallback(async () => {
+  // Load today's data strictly using ONLY today's date key
+  const loadTodayData = useCallback(async () => {
     try {
-      const todayStr = formatDate(new Date());
-      // Strictly resolve targetDate: default to today's local date
-      const targetDate = selectedDate || todayStr;
+      const todayKey = getTodayKey();
 
+      // Fetch date-specific records (food_entries_YYYY-MM-DD, workout_logs_YYYY-MM-DD, daily_logs_YYYY-MM-DD)
       const [dl, wl, bp, fe] = await Promise.all([
-        getDailyLog(targetDate),
-        getWorkoutLog(targetDate),
+        getDailyLog(todayKey),
+        getWorkoutLog(todayKey),
         getBodyProgressList(),
-        getFoodEntries(targetDate),
+        getFoodEntries(todayKey),
       ]);
 
-      // Strictly filter food logs array by today's local date before rendering the list or calculating totals
-      // Only return and calculate items where date matches today. Any data from yesterday or earlier is hidden from today's view.
-      const strictlyFilteredFood = (fe || []).filter((item) => item.log_date === targetDate);
+      // If today's key does not exist, initialize state with empty logs [] and 0 workout calories
+      const strictlyTodayFood = (fe || []).filter((item) => item.log_date === todayKey);
+      const strictlyTodayWorkout =
+        wl && wl.log_date === todayKey ? wl : getEmptyWorkoutLog(todayKey);
+      const strictlyTodayDaily =
+        dl && dl.log_date === todayKey ? dl : getEmptyDailyLog(todayKey);
 
-      // Strictly verify workout data by targetDate
-      const cleanWorkout =
-        wl && wl.log_date === targetDate ? wl : getEmptyWorkoutLog(targetDate);
-
-      // Strictly verify daily log by targetDate
-      const cleanDaily =
-        dl && dl.log_date === targetDate ? dl : getEmptyDailyLog(targetDate);
-
-      setDailyLog(cleanDaily);
-      setWorkoutLog(cleanWorkout);
-      setBodyProgressList(bp);
-      setFoodEntries(strictlyFilteredFood);
+      setDailyLog(strictlyTodayDaily);
+      setWorkoutLog(strictlyTodayWorkout);
+      setBodyProgressList(bp || []);
+      setFoodEntries(strictlyTodayFood);
     } catch (err) {
-      console.error("Error loading dashboard data:", err);
+      console.error("Error loading today's dashboard data:", err);
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, []);
 
+  // Component initialization: fetch data using ONLY today's key
   useEffect(() => {
-    loadData();
-  }, [loadData, refreshKey]);
+    loadTodayData();
+  }, [loadTodayData, refreshKey]);
 
   if (loading || !dailyLog || !workoutLog) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
         <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        <span className="text-xs text-slate-400">Menyiapkan dashboard cutting...</span>
+        <span className="text-xs text-slate-400">Menyiapkan dashboard hari ini...</span>
       </div>
     );
   }
@@ -96,7 +92,7 @@ export default function DashboardPage() {
         workoutLog={workoutLog}
         foodEntries={foodEntries}
         onUpdate={() => {
-          loadData();
+          loadTodayData();
           triggerRefresh();
         }}
       />
@@ -155,13 +151,13 @@ export default function DashboardPage() {
       {/* 4. Synchronized Interactive Calorie Chart (Recharts) */}
       <InteractiveCalorieChart />
 
-      {/* 5. Food Entries Log Snippet for Selected Date */}
+      {/* 5. Food Entries Log Snippet for Today */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <UtensilsCrossed className="w-4 h-4 text-emerald-400" />
             <h3 className="text-sm font-bold text-white">
-              Daftar Makanan ({foodEntries.length} Menu)
+              Daftar Makanan Hari Ini ({foodEntries.length} Menu)
             </h3>
           </div>
           <Link
@@ -175,7 +171,7 @@ export default function DashboardPage() {
 
         {foodEntries.length === 0 ? (
           <div className="text-center py-6 border border-dashed border-slate-800 rounded-2xl">
-            <p className="text-xs text-slate-400">Belum ada makanan dicatat untuk tanggal ini.</p>
+            <p className="text-xs text-slate-400">Belum ada makanan dicatat untuk hari ini.</p>
             <Link
               href="/food"
               className="inline-flex items-center space-x-1.5 mt-2 px-3 py-1.5 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl shadow-md hover:bg-emerald-400 transition-colors"

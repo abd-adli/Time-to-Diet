@@ -1,9 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { formatDate } from "@/lib/storage";
+import { formatDate, getTodayKey } from "@/lib/storage";
 import { UserTargetConfig, DEFAULT_USER_CONFIG } from "@/lib/constants";
-import { getUserConfig, saveUserConfig, clearStaleStorageTotals } from "@/lib/storage";
+import { getUserConfig, saveUserConfig, clearStaleStorageTotals, purgeLegacyStorageKeys } from "@/lib/storage";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 interface AppContextType {
@@ -29,10 +29,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isMounted, setIsMounted] = useState<boolean>(false);
 
   useEffect(() => {
-    const todayStr = formatDate(new Date());
+    const todayStr = getTodayKey();
     setSelectedDate(todayStr);
     setIsMounted(true);
-    clearStaleStorageTotals();
+    purgeLegacyStorageKeys();
     setUserConfigState(getUserConfig());
     setIsSupabaseLive(isSupabaseConfigured());
   }, []);
@@ -49,7 +49,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const goToToday = useCallback(() => {
-    setSelectedDate(formatDate(new Date()));
+    setSelectedDate(getTodayKey());
   }, []);
 
   const changeDateByDays = useCallback(
