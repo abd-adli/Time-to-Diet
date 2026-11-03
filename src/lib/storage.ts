@@ -32,13 +32,62 @@ export function parseDate(dateStr: string): Date {
   return new Date(y, (m || 1) - 1, d || 1);
 }
 
-// Date-specific LocalStorage Key generators
+// In-memory cache of current active user id
+let memoryUserId: string | null = null;
+
+export function setCurrentUserIdCache(userId: string | null): void {
+  memoryUserId = userId;
+  if (typeof window !== "undefined") {
+    if (userId) {
+      localStorage.setItem("road_to_jan16_current_user_id", userId);
+    } else {
+      localStorage.removeItem("road_to_jan16_current_user_id");
+    }
+  }
+}
+
+export function getCachedUserId(): string {
+  if (memoryUserId) return memoryUserId;
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("road_to_jan16_current_user_id");
+    if (stored) {
+      memoryUserId = stored;
+      return stored;
+    }
+  }
+  return "guest";
+}
+
+export async function getCurrentUserId(): Promise<string | null> {
+  if (memoryUserId) return memoryUserId;
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        setCurrentUserIdCache(session.user.id);
+        return session.user.id;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        setCurrentUserIdCache(user.id);
+        return user.id;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  const cached = getCachedUserId();
+  return cached !== "guest" ? cached : null;
+}
+
+// User-scoped & date-specific LocalStorage Key generators
 export const STORAGE_KEYS = {
-  DAILY_LOG: (dateKey: string) => `daily_logs_${dateKey}`,
-  WORKOUT_LOG: (dateKey: string) => `workout_logs_${dateKey}`,
-  FOOD_ENTRIES: (dateKey: string) => `food_entries_${dateKey}`,
-  USER_CONFIG: "road_to_jan16_user_config",
-  BODY_PROGRESS: "road_to_jan16_body_progress",
+  DAILY_LOG: (dateKey: string, userId: string = getCachedUserId()) => `daily_logs_${userId}_${dateKey}`,
+  WORKOUT_LOG: (dateKey: string, userId: string = getCachedUserId()) => `workout_logs_${userId}_${dateKey}`,
+  FOOD_ENTRIES: (dateKey: string, userId: string = getCachedUserId()) => `food_entries_${userId}_${dateKey}`,
+  USER_CONFIG: (userId: string = getCachedUserId()) => `road_to_jan16_user_config_${userId}`,
+  BODY_PROGRESS: (userId: string = getCachedUserId()) => `road_to_jan16_body_progress_${userId}`,
 };
 
 /**
@@ -82,7 +131,7 @@ export function nukeOldLocalStorageOnDateChange(): boolean {
     const lastOpened = localStorage.getItem("last_opened_date");
 
     if (lastOpened !== today) {
-      // Explicitly remove all keys related to logs, workouts, or totals
+      // Explicitly remove legacy keys
       const keysToRemove = [
         "daily_logs",
         "workout_logs",
@@ -102,7 +151,7 @@ export function nukeOldLocalStorageOnDateChange(): boolean {
       ];
       keysToRemove.forEach((key) => localStorage.removeItem(key));
 
-      // Remove any date-specific keys not matching today's key
+      // Remove any date-specific keys not matching today's date key
       const todayKey = getTodayKey();
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
@@ -165,9 +214,10 @@ export function calculateWorkoutCalories(
 /**
  * Helper to return a clean empty daily log with all macros & calories set to 0
  */
-export function getEmptyDailyLog(dateStr: string = getTodayKey()): DailyLog {
+export function getEmptyDailyLog(dateStr: string = getTodayKey(), userId?: string): DailyLog {
   return {
     id: `dl-${dateStr}`,
+    user_id: userId || getCachedUserId(),
     log_date: dateStr,
     fasting_hours: 0,
     calories_in: 0,
@@ -183,9 +233,10 @@ export function getEmptyDailyLog(dateStr: string = getTodayKey()): DailyLog {
 /**
  * Helper to return a clean empty workout log with burned calories set to 0
  */
-export function getEmptyWorkoutLog(dateStr: string = getTodayKey()): WorkoutLog {
+export function getEmptyWorkoutLog(dateStr: string = getTodayKey(), userId?: string): WorkoutLog {
   return {
     id: `wl-${dateStr}`,
+    user_id: userId || getCachedUserId(),
     log_date: dateStr,
     split_category: "Push Day",
     exercises: (WORKOUT_SPLITS["Push Day"]?.templates || []).map((t) => ({ ...t, completed: false })),
@@ -203,34 +254,42 @@ export function getEmptyWorkoutLog(dateStr: string = getTodayKey()): WorkoutLog 
 // ==========================================
 // USER CONFIG
 // ==========================================
-export function getUserConfig(): UserTargetConfig {
+export function getUserConfig(explicitUserId?: string): UserTargetConfig {
+  const userId = explicitUserId || getCachedUserId();
   if (typeof window === "undefined") return DEFAULT_USER_CONFIG;
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.USER_CONFIG);
-    if (!raw) return DEFAULT_USER_CONFIG;
+    const raw = localStorage.getItem(STORAGE_KEYS.USER_CONFIG(userId));
+    if (!raw) {
+      const legacy = localStorage.getItem("road_to_jan16_user_config");
+      if (legacy) return { ...DEFAULT_USER_CONFIG, ...JSON.parse(legacy) };
+      return DEFAULT_USER_CONFIG;
+    }
     return { ...DEFAULT_USER_CONFIG, ...JSON.parse(raw) };
   } catch {
     return DEFAULT_USER_CONFIG;
   }
 }
 
-export function saveUserConfig(config: UserTargetConfig): void {
+export function saveUserConfig(config: UserTargetConfig, explicitUserId?: string): void {
+  const userId = explicitUserId || getCachedUserId();
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEYS.USER_CONFIG, JSON.stringify(config));
+  localStorage.setItem(STORAGE_KEYS.USER_CONFIG(userId), JSON.stringify(config));
 }
 
 // ==========================================
-// FOOD ENTRIES (DATE-SPECIFIC STORAGE ONLY, NO FALLBACK)
+// FOOD ENTRIES (USER & DATE SPECIFIC STORAGE)
 // ==========================================
-export async function getFoodEntries(dateStr?: string): Promise<FoodEntry[]> {
+export async function getFoodEntries(dateStr?: string, explicitUserId?: string): Promise<FoodEntry[]> {
   const targetDate = dateStr || getTodayKey();
+  const userId = explicitUserId || (await getCurrentUserId()) || getCachedUserId();
   const supabase = getSupabaseClient();
 
-  if (supabase) {
+  if (supabase && userId && userId !== "guest") {
     try {
       const { data, error } = await supabase
         .from("food_entries")
         .select("*")
+        .eq("user_id", userId)
         .eq("log_date", targetDate)
         .order("created_at", { ascending: true });
 
@@ -239,6 +298,7 @@ export async function getFoodEntries(dateStr?: string): Promise<FoodEntry[]> {
           .filter((item) => item.log_date === targetDate && !item.id?.startsWith("seed-fe-"))
           .map((item) => ({
             id: item.id,
+            user_id: item.user_id,
             log_date: item.log_date,
             meal_name: item.meal_name,
             calories: Number(item.calories) || 0,
@@ -252,16 +312,12 @@ export async function getFoodEntries(dateStr?: string): Promise<FoodEntry[]> {
     }
   }
 
-  // LocalStorage: STRICTLY use date-specific key only (food_entries_YYYY-MM-DD)
-  // ABSOLUTELY NO FALLBACK TO OLD UN-DATED KEYS
+  // LocalStorage: STRICTLY use date-specific & user-specific key
   if (typeof window !== "undefined") {
     try {
-      const specificKey = STORAGE_KEYS.FOOD_ENTRIES(targetDate);
+      const specificKey = STORAGE_KEYS.FOOD_ENTRIES(targetDate, userId);
       const raw = localStorage.getItem(specificKey);
-      if (!raw) {
-        // Does not exist for this date -> returns clean empty array []
-        return [];
-      }
+      if (!raw) return [];
       const list: FoodEntry[] = JSON.parse(raw);
       return (list || []).filter(
         (entry) => entry.log_date === targetDate && !entry.id?.startsWith("seed-fe-")
@@ -274,12 +330,17 @@ export async function getFoodEntries(dateStr?: string): Promise<FoodEntry[]> {
   return [];
 }
 
-export async function addFoodEntry(entry: Omit<FoodEntry, "id" | "created_at">): Promise<FoodEntry> {
+export async function addFoodEntry(
+  entry: Omit<FoodEntry, "id" | "created_at">,
+  explicitUserId?: string
+): Promise<FoodEntry> {
   const targetDate = entry.log_date || getTodayKey();
+  const userId = explicitUserId || entry.user_id || (await getCurrentUserId()) || getCachedUserId();
   const supabase = getSupabaseClient();
   const newId = `food-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const fullEntry: FoodEntry = {
     ...entry,
+    user_id: userId,
     log_date: targetDate,
     id: newId,
     created_at: new Date().toISOString(),
@@ -287,16 +348,18 @@ export async function addFoodEntry(entry: Omit<FoodEntry, "id" | "created_at">):
     protein: Number(entry.protein) || 0,
   };
 
-  if (supabase) {
+  if (supabase && userId && userId !== "guest") {
     try {
+      // Ensure daily_logs record exists for this user and date
       await supabase.from("daily_logs").upsert(
-        { log_date: targetDate },
-        { onConflict: "log_date" }
+        { user_id: userId, log_date: targetDate },
+        { onConflict: "user_id,log_date" }
       );
 
       const { data, error } = await supabase
         .from("food_entries")
         .insert({
+          user_id: userId,
           log_date: targetDate,
           meal_name: entry.meal_name,
           calories: fullEntry.calories,
@@ -314,10 +377,10 @@ export async function addFoodEntry(entry: Omit<FoodEntry, "id" | "created_at">):
     }
   }
 
-  // LocalStorage: Save ONLY to date-specific key: food_entries_YYYY-MM-DD
+  // LocalStorage save
   if (typeof window !== "undefined") {
     try {
-      const specificKey = STORAGE_KEYS.FOOD_ENTRIES(targetDate);
+      const specificKey = STORAGE_KEYS.FOOD_ENTRIES(targetDate, userId);
       const raw = localStorage.getItem(specificKey);
       const list: FoodEntry[] = raw ? JSON.parse(raw) : [];
       list.push(fullEntry);
@@ -327,10 +390,10 @@ export async function addFoodEntry(entry: Omit<FoodEntry, "id" | "created_at">):
       const dynamicCalories = list.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
       const dynamicProtein = list.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
 
-      const currentDaily = await getDailyLog(targetDate);
+      const currentDaily = await getDailyLog(targetDate, userId);
       currentDaily.calories_in = dynamicCalories;
       currentDaily.protein_in = dynamicProtein;
-      await saveDailyLog(currentDaily);
+      await saveDailyLog(currentDaily, userId);
     } catch (e) {
       console.warn("LocalStorage addFoodEntry error:", e);
     }
@@ -339,13 +402,14 @@ export async function addFoodEntry(entry: Omit<FoodEntry, "id" | "created_at">):
   return fullEntry;
 }
 
-export async function deleteFoodEntry(id: string, dateStr: string): Promise<void> {
+export async function deleteFoodEntry(id: string, dateStr: string, explicitUserId?: string): Promise<void> {
   const targetDate = dateStr || getTodayKey();
+  const userId = explicitUserId || (await getCurrentUserId()) || getCachedUserId();
   const supabase = getSupabaseClient();
 
-  if (supabase) {
+  if (supabase && userId && userId !== "guest") {
     try {
-      await supabase.from("food_entries").delete().eq("id", id);
+      await supabase.from("food_entries").delete().eq("id", id).eq("user_id", userId);
     } catch (e) {
       console.warn("Supabase deleteFoodEntry failed:", e);
     }
@@ -353,7 +417,7 @@ export async function deleteFoodEntry(id: string, dateStr: string): Promise<void
 
   if (typeof window !== "undefined") {
     try {
-      const specificKey = STORAGE_KEYS.FOOD_ENTRIES(targetDate);
+      const specificKey = STORAGE_KEYS.FOOD_ENTRIES(targetDate, userId);
       const raw = localStorage.getItem(specificKey);
       if (raw) {
         const list: FoodEntry[] = JSON.parse(raw);
@@ -364,10 +428,10 @@ export async function deleteFoodEntry(id: string, dateStr: string): Promise<void
         const dynamicCalories = filtered.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
         const dynamicProtein = filtered.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
 
-        const currentDaily = await getDailyLog(targetDate);
+        const currentDaily = await getDailyLog(targetDate, userId);
         currentDaily.calories_in = dynamicCalories;
         currentDaily.protein_in = dynamicProtein;
-        await saveDailyLog(currentDaily);
+        await saveDailyLog(currentDaily, userId);
       }
     } catch (e) {
       console.warn("LocalStorage deleteFoodEntry error:", e);
@@ -376,14 +440,15 @@ export async function deleteFoodEntry(id: string, dateStr: string): Promise<void
 }
 
 // ==========================================
-// DAILY LOGS (DATE-SPECIFIC STORAGE ONLY, NO FALLBACK)
+// DAILY LOGS (USER & DATE SPECIFIC STORAGE)
 // ==========================================
-export async function getDailyLog(dateStr?: string): Promise<DailyLog> {
+export async function getDailyLog(dateStr?: string, explicitUserId?: string): Promise<DailyLog> {
   const targetDate = dateStr || getTodayKey();
-  const emptyLog = getEmptyDailyLog(targetDate);
+  const userId = explicitUserId || (await getCurrentUserId()) || getCachedUserId();
+  const emptyLog = getEmptyDailyLog(targetDate, userId);
 
   // Compute calories and protein dynamically on the fly from date-specific food entries
-  const foodEntries = await getFoodEntries(targetDate);
+  const foodEntries = await getFoodEntries(targetDate, userId);
   const dynamicCaloriesIn = foodEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
   const dynamicProteinIn = foodEntries.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
 
@@ -391,17 +456,19 @@ export async function getDailyLog(dateStr?: string): Promise<DailyLog> {
   emptyLog.protein_in = dynamicProteinIn;
 
   const supabase = getSupabaseClient();
-  if (supabase) {
+  if (supabase && userId && userId !== "guest") {
     try {
       const { data, error } = await supabase
         .from("daily_logs")
         .select("*")
+        .eq("user_id", userId)
         .eq("log_date", targetDate)
         .maybeSingle();
 
       if (!error && data && data.log_date === targetDate) {
         return {
           id: data.id,
+          user_id: data.user_id,
           log_date: targetDate,
           fasting_hours: Number(data.fasting_hours) || 0,
           calories_in: dynamicCaloriesIn,
@@ -419,21 +486,18 @@ export async function getDailyLog(dateStr?: string): Promise<DailyLog> {
     }
   }
 
-  // LocalStorage: STRICTLY use date-specific key only (daily_logs_YYYY-MM-DD)
-  // ABSOLUTELY NO FALLBACK TO OLD UN-DATED KEYS
+  // LocalStorage fallback
   if (typeof window !== "undefined") {
     try {
-      const specificKey = STORAGE_KEYS.DAILY_LOG(targetDate);
+      const specificKey = STORAGE_KEYS.DAILY_LOG(targetDate, userId);
       const raw = localStorage.getItem(specificKey);
-      if (!raw) {
-        // Key does not exist for this date -> returns clean 0s
-        return emptyLog;
-      }
+      if (!raw) return emptyLog;
 
       const record = JSON.parse(raw);
       if (record && record.log_date === targetDate) {
         return {
           id: record.id || `dl-${targetDate}`,
+          user_id: userId,
           log_date: targetDate,
           fasting_hours: Number(record.fasting_hours) || 0,
           calories_in: dynamicCaloriesIn,
@@ -454,25 +518,27 @@ export async function getDailyLog(dateStr?: string): Promise<DailyLog> {
   return emptyLog;
 }
 
-export async function saveDailyLog(log: DailyLog): Promise<DailyLog> {
+export async function saveDailyLog(log: DailyLog, explicitUserId?: string): Promise<DailyLog> {
   const targetDate = log.log_date || getTodayKey();
+  const userId = explicitUserId || log.user_id || (await getCurrentUserId()) || getCachedUserId();
 
-  // Dynamically compute totals from food entries
-  const foodEntries = await getFoodEntries(targetDate);
+  const foodEntries = await getFoodEntries(targetDate, userId);
   const dynamicCaloriesIn = foodEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
   const dynamicProteinIn = foodEntries.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
 
   const cleanLog: DailyLog = {
     ...log,
+    user_id: userId,
     log_date: targetDate,
     calories_in: dynamicCaloriesIn,
     protein_in: dynamicProteinIn,
   };
 
   const supabase = getSupabaseClient();
-  if (supabase) {
+  if (supabase && userId && userId !== "guest") {
     try {
       const payload = {
+        user_id: userId,
         log_date: cleanLog.log_date,
         fasting_hours: Number(cleanLog.fasting_hours) || 0,
         calories_in: cleanLog.calories_in,
@@ -486,7 +552,7 @@ export async function saveDailyLog(log: DailyLog): Promise<DailyLog> {
 
       const { data, error } = await supabase
         .from("daily_logs")
-        .upsert(payload, { onConflict: "log_date" })
+        .upsert(payload, { onConflict: "user_id,log_date" })
         .select()
         .single();
 
@@ -498,10 +564,10 @@ export async function saveDailyLog(log: DailyLog): Promise<DailyLog> {
     }
   }
 
-  // LocalStorage: Save ONLY to date-specific key: daily_logs_YYYY-MM-DD
+  // LocalStorage save
   if (typeof window !== "undefined") {
     try {
-      const specificKey = STORAGE_KEYS.DAILY_LOG(targetDate);
+      const specificKey = STORAGE_KEYS.DAILY_LOG(targetDate, userId);
       localStorage.setItem(specificKey, JSON.stringify(cleanLog));
     } catch (e) {
       console.warn("LocalStorage saveDailyLog error:", e);
@@ -512,24 +578,27 @@ export async function saveDailyLog(log: DailyLog): Promise<DailyLog> {
 }
 
 // ==========================================
-// WORKOUT LOGS (DATE-SPECIFIC STORAGE ONLY, NO FALLBACK)
+// WORKOUT LOGS (USER & DATE SPECIFIC STORAGE)
 // ==========================================
-export async function getWorkoutLog(dateStr?: string): Promise<WorkoutLog> {
+export async function getWorkoutLog(dateStr?: string, explicitUserId?: string): Promise<WorkoutLog> {
   const targetDate = dateStr || getTodayKey();
-  const emptyLog = getEmptyWorkoutLog(targetDate);
+  const userId = explicitUserId || (await getCurrentUserId()) || getCachedUserId();
+  const emptyLog = getEmptyWorkoutLog(targetDate, userId);
   const supabase = getSupabaseClient();
 
-  if (supabase) {
+  if (supabase && userId && userId !== "guest") {
     try {
       const { data, error } = await supabase
         .from("workout_logs")
         .select("*")
+        .eq("user_id", userId)
         .eq("log_date", targetDate)
         .maybeSingle();
 
       if (!error && data && data.log_date === targetDate) {
         return {
           id: data.id,
+          user_id: data.user_id,
           log_date: targetDate,
           split_category: data.split_category || "Push Day",
           exercises: Array.isArray(data.exercises) ? data.exercises : [],
@@ -549,21 +618,18 @@ export async function getWorkoutLog(dateStr?: string): Promise<WorkoutLog> {
     }
   }
 
-  // LocalStorage: STRICTLY use date-specific key only (workout_logs_YYYY-MM-DD)
-  // ABSOLUTELY NO FALLBACK TO OLD UN-DATED KEYS
+  // LocalStorage fallback
   if (typeof window !== "undefined") {
     try {
-      const specificKey = STORAGE_KEYS.WORKOUT_LOG(targetDate);
+      const specificKey = STORAGE_KEYS.WORKOUT_LOG(targetDate, userId);
       const raw = localStorage.getItem(specificKey);
-      if (!raw) {
-        // Key does not exist for this date -> returns clean 0s
-        return emptyLog;
-      }
+      if (!raw) return emptyLog;
 
       const record = JSON.parse(raw);
       if (record && record.log_date === targetDate) {
         return {
           id: record.id || `wl-${targetDate}`,
+          user_id: userId,
           log_date: targetDate,
           split_category: record.split_category || "Push Day",
           exercises: Array.isArray(record.exercises) ? record.exercises : [],
@@ -586,14 +652,16 @@ export async function getWorkoutLog(dateStr?: string): Promise<WorkoutLog> {
   return emptyLog;
 }
 
-export async function saveWorkoutLog(log: WorkoutLog): Promise<WorkoutLog> {
+export async function saveWorkoutLog(log: WorkoutLog, explicitUserId?: string): Promise<WorkoutLog> {
   const targetDate = log.log_date || getTodayKey();
-  const cleanLog: WorkoutLog = { ...log, log_date: targetDate };
+  const userId = explicitUserId || log.user_id || (await getCurrentUserId()) || getCachedUserId();
+  const cleanLog: WorkoutLog = { ...log, user_id: userId, log_date: targetDate };
 
   const supabase = getSupabaseClient();
-  if (supabase) {
+  if (supabase && userId && userId !== "guest") {
     try {
       const payload = {
+        user_id: userId,
         log_date: cleanLog.log_date,
         split_category: cleanLog.split_category,
         exercises: cleanLog.exercises || [],
@@ -609,7 +677,7 @@ export async function saveWorkoutLog(log: WorkoutLog): Promise<WorkoutLog> {
 
       const { data, error } = await supabase
         .from("workout_logs")
-        .upsert(payload, { onConflict: "log_date" })
+        .upsert(payload, { onConflict: "user_id,log_date" })
         .select()
         .single();
 
@@ -621,10 +689,10 @@ export async function saveWorkoutLog(log: WorkoutLog): Promise<WorkoutLog> {
     }
   }
 
-  // LocalStorage: Save ONLY to date-specific key: workout_logs_YYYY-MM-DD
+  // LocalStorage save
   if (typeof window !== "undefined") {
     try {
-      const specificKey = STORAGE_KEYS.WORKOUT_LOG(targetDate);
+      const specificKey = STORAGE_KEYS.WORKOUT_LOG(targetDate, userId);
       localStorage.setItem(specificKey, JSON.stringify(cleanLog));
     } catch (e) {
       console.warn("LocalStorage saveWorkoutLog error:", e);
@@ -635,21 +703,24 @@ export async function saveWorkoutLog(log: WorkoutLog): Promise<WorkoutLog> {
 }
 
 // ==========================================
-// BODY PROGRESS
+// BODY PROGRESS (USER SPECIFIC)
 // ==========================================
-export async function getBodyProgressList(): Promise<BodyProgress[]> {
+export async function getBodyProgressList(explicitUserId?: string): Promise<BodyProgress[]> {
+  const userId = explicitUserId || (await getCurrentUserId()) || getCachedUserId();
   const supabase = getSupabaseClient();
 
-  if (supabase) {
+  if (supabase && userId && userId !== "guest") {
     try {
       const { data, error } = await supabase
         .from("body_progress")
         .select("*")
+        .eq("user_id", userId)
         .order("log_date", { ascending: true });
 
       if (!error && data && data.length > 0) {
         return data.map((item) => ({
           id: item.id,
+          user_id: item.user_id,
           log_date: item.log_date,
           weight_kg: Number(item.weight_kg) || 0,
           waist_cm: Number(item.waist_cm) || 0,
@@ -662,7 +733,7 @@ export async function getBodyProgressList(): Promise<BodyProgress[]> {
   }
 
   if (typeof window !== "undefined") {
-    const raw = localStorage.getItem(STORAGE_KEYS.BODY_PROGRESS);
+    const raw = localStorage.getItem(STORAGE_KEYS.BODY_PROGRESS(userId));
     if (raw) {
       try {
         const list: BodyProgress[] = JSON.parse(raw);
@@ -676,14 +747,19 @@ export async function getBodyProgressList(): Promise<BodyProgress[]> {
   return [];
 }
 
-export async function saveBodyProgress(entry: {
-  log_date: string;
-  weight_kg: number;
-  waist_cm: number;
-}): Promise<BodyProgress> {
+export async function saveBodyProgress(
+  entry: {
+    log_date: string;
+    weight_kg: number;
+    waist_cm: number;
+  },
+  explicitUserId?: string
+): Promise<BodyProgress> {
   const targetDate = entry.log_date || getTodayKey();
+  const userId = explicitUserId || (await getCurrentUserId()) || getCachedUserId();
   const newEntry: BodyProgress = {
     id: `bp-${targetDate}`,
+    user_id: userId,
     log_date: targetDate,
     weight_kg: Number(entry.weight_kg) || 0,
     waist_cm: Number(entry.waist_cm) || 0,
@@ -691,17 +767,18 @@ export async function saveBodyProgress(entry: {
   };
 
   const supabase = getSupabaseClient();
-  if (supabase) {
+  if (supabase && userId && userId !== "guest") {
     try {
       const { data, error } = await supabase
         .from("body_progress")
         .upsert(
           {
+            user_id: userId,
             log_date: targetDate,
             weight_kg: newEntry.weight_kg,
             waist_cm: newEntry.waist_cm,
           },
-          { onConflict: "log_date" }
+          { onConflict: "user_id,log_date" }
         )
         .select()
         .single();
@@ -716,7 +793,7 @@ export async function saveBodyProgress(entry: {
 
   if (typeof window !== "undefined") {
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.BODY_PROGRESS);
+      const raw = localStorage.getItem(STORAGE_KEYS.BODY_PROGRESS(userId));
       const list: BodyProgress[] = raw ? JSON.parse(raw) : [];
       const index = list.findIndex((p) => p.log_date === targetDate);
       if (index >= 0) {
@@ -725,7 +802,7 @@ export async function saveBodyProgress(entry: {
         list.push(newEntry);
       }
       list.sort((a, b) => a.log_date.localeCompare(b.log_date));
-      localStorage.setItem(STORAGE_KEYS.BODY_PROGRESS, JSON.stringify(list));
+      localStorage.setItem(STORAGE_KEYS.BODY_PROGRESS(userId), JSON.stringify(list));
     } catch {
       // ignore
     }
@@ -738,21 +815,25 @@ export async function saveBodyProgress(entry: {
 // MONTHLY / HISTORICAL COMBINED CHART DATA
 // Strictly enforces numeric types to prevent `#VALUE!` or `NaN`
 // ==========================================
-export async function getDailyChartData(daysBack: number = 14): Promise<DailyChartDataPoint[]> {
-  const config = getUserConfig();
+export async function getDailyChartData(
+  daysBack: number = 14,
+  explicitUserId?: string
+): Promise<DailyChartDataPoint[]> {
+  const userId = explicitUserId || (await getCurrentUserId()) || getCachedUserId();
+  const config = getUserConfig(userId);
   const bmr = Number(config.baseBmr) || 2056;
   const calorieTarget = Number(config.dailyCalorieTarget) || 1600;
 
   const result: DailyChartDataPoint[] = [];
   const today = new Date();
 
-  // Load daily logs and workout logs strictly for each specific date key
+  // Load daily logs and workout logs strictly for each specific date key for this user
   for (let i = daysBack - 1; i >= 0; i--) {
     const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
     const dateStr = formatDate(d);
 
-    const foodEntries = await getFoodEntries(dateStr);
-    const workoutLog = await getWorkoutLog(dateStr);
+    const foodEntries = await getFoodEntries(dateStr, userId);
+    const workoutLog = await getWorkoutLog(dateStr, userId);
 
     const caloriesIn = foodEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
     const caloriesBurned = Number(workoutLog.workout_calories_burned) || 0;

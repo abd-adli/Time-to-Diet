@@ -1,10 +1,18 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { User, Session } from "@supabase/supabase-js";
 import { formatDate, getTodayKey } from "@/lib/storage";
 import { UserTargetConfig, DEFAULT_USER_CONFIG } from "@/lib/constants";
-import { getUserConfig, saveUserConfig, clearStaleStorageTotals, purgeLegacyStorageKeys, nukeOldLocalStorageOnDateChange } from "@/lib/storage";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import {
+  getUserConfig,
+  saveUserConfig,
+  clearStaleStorageTotals,
+  purgeLegacyStorageKeys,
+  nukeOldLocalStorageOnDateChange,
+  setCurrentUserIdCache,
+} from "@/lib/storage";
+import { isSupabaseConfigured, getSupabaseClient } from "@/lib/supabase";
 
 interface AppContextType {
   selectedDate: string;
@@ -17,6 +25,10 @@ interface AppContextType {
   goToToday: () => void;
   changeDateByDays: (delta: number) => void;
   isMounted: boolean;
+  user: User | null;
+  session: Session | null;
+  authLoading: boolean;
+  signOut: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -27,6 +39,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isSupabaseLive, setIsSupabaseLive] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const todayStr = getTodayKey();
@@ -34,8 +49,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsMounted(true);
     purgeLegacyStorageKeys();
     nukeOldLocalStorageOnDateChange();
-    setUserConfigState(getUserConfig());
     setIsSupabaseLive(isSupabaseConfigured());
+
+    // Initialize Supabase Auth Session
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session: initSession } }) => {
+        setSession(initSession);
+        setUser(initSession?.user ?? null);
+        if (initSession?.user?.id) {
+          setCurrentUserIdCache(initSession.user.id);
+          setUserConfigState(getUserConfig(initSession.user.id));
+        } else {
+          setCurrentUserIdCache(null);
+          setUserConfigState(getUserConfig());
+        }
+        setAuthLoading(false);
+      });
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        if (currentSession?.user?.id) {
+          setCurrentUserIdCache(currentSession.user.id);
+          setUserConfigState(getUserConfig(currentSession.user.id));
+        } else {
+          setCurrentUserIdCache(null);
+          setUserConfigState(getUserConfig());
+        }
+        setAuthLoading(false);
+        setRefreshKey((k) => k + 1);
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    } else {
+      setUserConfigState(getUserConfig());
+      setAuthLoading(false);
+    }
   }, []);
 
   const triggerRefresh = useCallback(() => {
@@ -43,9 +97,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsSupabaseLive(isSupabaseConfigured());
   }, []);
 
-  const updateUserConfig = useCallback((newConfig: UserTargetConfig) => {
-    setUserConfigState(newConfig);
-    saveUserConfig(newConfig);
+  const updateUserConfig = useCallback(
+    (newConfig: UserTargetConfig) => {
+      setUserConfigState(newConfig);
+      saveUserConfig(newConfig, user?.id);
+      setRefreshKey((k) => k + 1);
+    },
+    [user?.id]
+  );
+
+  const signOut = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    setCurrentUserIdCache(null);
+    setUser(null);
+    setSession(null);
     setRefreshKey((k) => k + 1);
   }, []);
 
@@ -77,6 +145,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         goToToday,
         changeDateByDays,
         isMounted,
+        user,
+        session,
+        authLoading,
+        signOut,
       }}
     >
       {children}

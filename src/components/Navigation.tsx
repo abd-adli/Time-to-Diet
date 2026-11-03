@@ -4,9 +4,13 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, UtensilsCrossed, Dumbbell, TrendingUp, Settings } from "lucide-react";
+import { useApp } from "@/context/AppContext";
 
 export function Navigation() {
   const pathname = usePathname();
+  const { user } = useApp();
+
+  if (!user) return null;
 
   const navItems = [
     {

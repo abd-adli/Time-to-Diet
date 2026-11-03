@@ -2,13 +2,13 @@
 
 import React from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Calendar, Flame, Database, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Flame, Database, ShieldCheck, User as UserIcon, LogOut } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { Navigation } from "./Navigation";
 import { formatDate } from "@/lib/storage";
 
 export function Header() {
-  const { selectedDate, setSelectedDate, goToToday, changeDateByDays, isSupabaseLive } = useApp();
+  const { selectedDate, setSelectedDate, goToToday, changeDateByDays, isSupabaseLive, user, signOut } = useApp();
   const [todayStr, setTodayStr] = React.useState<string>("");
 
   React.useEffect(() => {
@@ -124,6 +124,25 @@ export function Header() {
             >
               Hari Ini
             </button>
+          )}
+
+          {/* User Account & Logout */}
+          {user && (
+            <div className="flex items-center space-x-1.5 pl-1">
+              <span
+                title={user.email}
+                className="hidden sm:inline-block max-w-[110px] truncate text-[11px] font-medium text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg"
+              >
+                {user.email?.split("@")[0]}
+              </span>
+              <button
+                onClick={signOut}
+                title={`Keluar (${user.email})`}
+                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl border border-slate-800 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
       </div>

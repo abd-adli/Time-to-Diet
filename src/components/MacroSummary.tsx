@@ -22,7 +22,7 @@ export function MacroSummary({
   foodEntries = [],
   onUpdate,
 }: MacroSummaryProps) {
-  const { userConfig } = useApp();
+  const { userConfig, user } = useApp();
   const [activePlankTimer, setActivePlankTimer] = useState<string | null>(null);
 
   // Targets
@@ -61,14 +61,14 @@ export function MacroSummary({
   // Toggle Creatine
   const handleToggleCreatine = async () => {
     const updated = { ...dailyLog, creatine_taken: !dailyLog.creatine_taken };
-    await saveDailyLog(updated);
+    await saveDailyLog(updated, user?.id);
     onUpdate();
   };
 
   // Toggle Prayer Plank
   const handleTogglePlank = async (key: keyof WorkoutLog) => {
     const updated = { ...workoutLog, [key]: !workoutLog[key] };
-    await saveWorkoutLog(updated);
+    await saveWorkoutLog(updated, user?.id);
     onUpdate();
 
     // Trigger celebratory confetti if this completes all 5!
@@ -95,7 +95,7 @@ export function MacroSummary({
 
   const handleCompletePlankFromTimer = async (key: string) => {
     const updated = { ...workoutLog, [key]: true };
-    await saveWorkoutLog(updated);
+    await saveWorkoutLog(updated, user?.id);
     onUpdate();
   };
 

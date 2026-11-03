@@ -9,7 +9,9 @@ import {
   getDailyLog,
   saveDailyLog,
   formatDate,
+  getTodayKey,
 } from "@/lib/storage";
+import { Login } from "@/components/Login";
 import {
   ResponsiveContainer,
   LineChart,
@@ -34,7 +36,7 @@ import {
 import confetti from "canvas-confetti";
 
 export default function ProgressPage() {
-  const { selectedDate, refreshKey, triggerRefresh, userConfig } = useApp();
+  const { selectedDate, refreshKey, triggerRefresh, userConfig, user, authLoading } = useApp();
 
   const [progressList, setProgressList] = useState<BodyProgress[]>([]);
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
@@ -49,12 +51,16 @@ export default function ProgressPage() {
   const [fastingHours, setFastingHours] = useState<number>(16);
 
   const loadData = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const targetDate = selectedDate || formatDate(new Date());
+      const targetDate = selectedDate || getTodayKey();
       const [list, dl] = await Promise.all([
-        getBodyProgressList(),
-        getDailyLog(targetDate),
+        getBodyProgressList(user.id),
+        getDailyLog(targetDate, user.id),
       ]);
       setProgressList(list);
       setDailyLog(dl);
@@ -75,7 +81,7 @@ export default function ProgressPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, userConfig.startingWeight]);
+  }, [selectedDate, user, userConfig.startingWeight]);
 
   useEffect(() => {
     loadData();
@@ -84,22 +90,29 @@ export default function ProgressPage() {
   // Handle Save Body Progress
   const handleSaveProgress = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputWeight || !inputWaist) return;
+    if (!user || !inputWeight || !inputWaist) return;
 
     setIsSaving(true);
     try {
-      await saveBodyProgress({
-        log_date: selectedDate,
-        weight_kg: parseFloat(inputWeight),
-        waist_cm: parseFloat(inputWaist),
-      });
+      const targetDate = selectedDate || getTodayKey();
+      await saveBodyProgress(
+        {
+          log_date: targetDate,
+          weight_kg: parseFloat(inputWeight),
+          waist_cm: parseFloat(inputWaist),
+        },
+        user.id
+      );
 
       // Also save fasting hours to daily_logs
       if (dailyLog) {
-        await saveDailyLog({
-          ...dailyLog,
-          fasting_hours: Number(fastingHours) || 16,
-        });
+        await saveDailyLog(
+          {
+            ...dailyLog,
+            fasting_hours: Number(fastingHours) || 16,
+          },
+          user.id
+        );
       }
 
       triggerRefresh();
@@ -114,6 +127,19 @@ export default function ProgressPage() {
       setIsSaving(false);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-3">
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs text-slate-400">Memeriksa autentikasi profil...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   // Metrics
   const startingWeight = userConfig.startingWeight || 105;

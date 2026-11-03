@@ -13,6 +13,7 @@ import {
 } from "@/lib/storage";
 import { QUICK_ADD_PRESETS, INDONESIAN_CUTTING_FOODS } from "@/lib/constants";
 import { compressImageToBase64 } from "@/lib/image-compress";
+import { Login } from "@/components/Login";
 import {
   Camera,
   Upload,
@@ -30,7 +31,7 @@ import {
 import confetti from "canvas-confetti";
 
 export default function FoodPage() {
-  const { selectedDate, refreshKey, triggerRefresh, userConfig } = useApp();
+  const { selectedDate, refreshKey, triggerRefresh, userConfig, user, authLoading } = useApp();
 
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,21 +53,38 @@ export default function FoodPage() {
 
   // Load food entries
   const loadEntries = useCallback(async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const targetDate = selectedDate || getTodayKey();
-      const list = await getFoodEntries(targetDate);
+      const list = await getFoodEntries(targetDate, user.id);
       setFoodEntries((list || []).filter((item) => item.log_date === targetDate));
     } catch (err) {
       console.error("Failed to load food entries:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate]);
+  }, [selectedDate, user]);
 
   useEffect(() => {
     loadEntries();
   }, [loadEntries, refreshKey]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-3">
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs text-slate-400">Memeriksa autentikasi profil...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   // Compute daily totals
   const totalCalories = foodEntries.reduce((acc, curr) => acc + (Number(curr.calories) || 0), 0);
@@ -76,9 +94,11 @@ export default function FoodPage() {
 
   // Handle Quick Add Preset
   const handleQuickAdd = async (preset: (typeof QUICK_ADD_PRESETS)[0]) => {
+    if (!user) return;
+    const targetDate = selectedDate || getTodayKey();
     if (preset.isCreatine) {
-      const dl = await getDailyLog(selectedDate);
-      await saveDailyLog({ ...dl, creatine_taken: true });
+      const dl = await getDailyLog(targetDate, user.id);
+      await saveDailyLog({ ...dl, creatine_taken: true }, user.id);
       triggerRefresh();
       try {
         confetti({ particleCount: 35, spread: 45, origin: { y: 0.8 } });
@@ -86,13 +106,16 @@ export default function FoodPage() {
       return;
     }
 
-    await addFoodEntry({
-      log_date: selectedDate,
-      meal_name: preset.name,
-      calories: preset.calories,
-      protein: preset.protein,
-      is_ai_estimated: false,
-    });
+    await addFoodEntry(
+      {
+        log_date: targetDate,
+        meal_name: preset.name,
+        calories: preset.calories,
+        protein: preset.protein,
+        is_ai_estimated: false,
+      },
+      user.id
+    );
     triggerRefresh();
     loadEntries();
   };
@@ -100,17 +123,21 @@ export default function FoodPage() {
   // Handle Manual Add
   const handleManualAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualName.trim() || !manualCalories) return;
+    if (!user || !manualName.trim() || !manualCalories) return;
 
     setIsSubmitting(true);
     try {
-      await addFoodEntry({
-        log_date: selectedDate,
-        meal_name: manualName.trim(),
-        calories: parseInt(manualCalories, 10) || 0,
-        protein: parseInt(manualProtein, 10) || 0,
-        is_ai_estimated: false,
-      });
+      const targetDate = selectedDate || getTodayKey();
+      await addFoodEntry(
+        {
+          log_date: targetDate,
+          meal_name: manualName.trim(),
+          calories: parseInt(manualCalories, 10) || 0,
+          protein: parseInt(manualProtein, 10) || 0,
+          is_ai_estimated: false,
+        },
+        user.id
+      );
       setManualName("");
       setManualCalories("");
       setManualProtein("");
@@ -172,16 +199,20 @@ export default function FoodPage() {
 
   // Save all items from AI scan
   const handleSaveAiItems = async () => {
-    if (!aiResult || !aiResult.items) return;
+    if (!user || !aiResult || !aiResult.items) return;
+    const targetDate = selectedDate || getTodayKey();
 
     for (const item of aiResult.items) {
-      await addFoodEntry({
-        log_date: selectedDate,
-        meal_name: `${item.name} (${item.portion})`,
-        calories: Math.round(Number(item.calories) || 0),
-        protein: Math.round(Number(item.protein) || 0),
-        is_ai_estimated: true,
-      });
+      await addFoodEntry(
+        {
+          log_date: targetDate,
+          meal_name: `${item.name} (${item.portion})`,
+          calories: Math.round(Number(item.calories) || 0),
+          protein: Math.round(Number(item.protein) || 0),
+          is_ai_estimated: true,
+        },
+        user.id
+      );
     }
 
     // Reset AI modal state
@@ -198,7 +229,9 @@ export default function FoodPage() {
 
   // Handle Delete Entry
   const handleDelete = async (id: string) => {
-    await deleteFoodEntry(id, selectedDate);
+    if (!user) return;
+    const targetDate = selectedDate || getTodayKey();
+    await deleteFoodEntry(id, targetDate, user.id);
     triggerRefresh();
     loadEntries();
   };

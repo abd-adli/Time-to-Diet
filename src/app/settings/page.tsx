@@ -16,11 +16,14 @@ import {
   RotateCcw,
   Sparkles,
   ShieldCheck,
+  User as UserIcon,
+  LogOut,
 } from "lucide-react";
 import confetti from "canvas-confetti";
+import { Login } from "@/components/Login";
 
 export default function SettingsPage() {
-  const { userConfig, updateUserConfig, triggerRefresh, isSupabaseLive } = useApp();
+  const { userConfig, updateUserConfig, triggerRefresh, isSupabaseLive, user, authLoading, signOut } = useApp();
 
   // Baseline config state
   const [config, setConfig] = useState<UserTargetConfig>(userConfig);
@@ -145,6 +148,19 @@ export default function SettingsPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-3">
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs text-slate-400">Memeriksa autentikasi profil...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
   return (
     <div className="space-y-6 pb-24 md:pb-12 max-w-3xl mx-auto">
       {/* Header */}
@@ -156,6 +172,34 @@ export default function SettingsPage() {
         <p className="text-xs text-slate-400">
           Sesuaikan baseline cutting, target pernikahan, koneksi Supabase, dan API Key Gemini AI.
         </p>
+      </div>
+
+      {/* Active User Account Card */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center space-x-3.5">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300">
+            <UserIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-bold text-white">{user.email}</span>
+              <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">
+                Profil Aktif
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+              UID: {user.id}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={signOut}
+          className="flex items-center justify-center space-x-1.5 px-3.5 py-2 text-xs font-semibold text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-600/30 border border-rose-500/30 rounded-xl transition cursor-pointer"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Keluar (Ganti Akun)</span>
+        </button>
       </div>
 
       {/* 1. Baseline Constants Section */}

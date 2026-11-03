@@ -2,6 +2,7 @@
 
 export interface DailyLog {
   id: string;
+  user_id?: string;
   log_date: string; // YYYY-MM-DD
   fasting_hours: number;
   calories_in: number;
@@ -16,6 +17,7 @@ export interface DailyLog {
 
 export interface FoodEntry {
   id: string;
+  user_id?: string;
   log_date: string; // YYYY-MM-DD
   meal_name: string;
   calories: number;
@@ -34,6 +36,7 @@ export interface ExerciseItem {
 
 export interface WorkoutLog {
   id: string;
+  user_id?: string;
   log_date: string; // YYYY-MM-DD
   split_category: string;
   exercises: ExerciseItem[];
@@ -50,6 +53,7 @@ export interface WorkoutLog {
 
 export interface BodyProgress {
   id: string;
+  user_id?: string;
   log_date: string; // YYYY-MM-DD
   weight_kg: number;
   waist_cm: number;

@@ -16,6 +16,7 @@ import {
 import { HeroCountdown } from "@/components/HeroCountdown";
 import { MacroSummary } from "@/components/MacroSummary";
 import { InteractiveCalorieChart } from "@/components/InteractiveCalorieChart";
+import { Login } from "@/components/Login";
 import {
   UtensilsCrossed,
   Dumbbell,
@@ -28,7 +29,7 @@ import {
 } from "lucide-react";
 
 export default function DashboardPage() {
-  const { refreshKey, triggerRefresh } = useApp();
+  const { refreshKey, triggerRefresh, user, authLoading } = useApp();
 
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [workoutLog, setWorkoutLog] = useState<WorkoutLog | null>(null);
@@ -36,25 +37,26 @@ export default function DashboardPage() {
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load today's data strictly using ONLY today's date key
+  // Load today's data strictly using ONLY today's date key and active user
   const loadTodayData = useCallback(async () => {
+    if (!user) return;
     try {
       const todayKey = getTodayKey();
 
-      // Fetch date-specific records (food_entries_YYYY-MM-DD, workout_logs_YYYY-MM-DD, daily_logs_YYYY-MM-DD)
+      // Fetch date-specific records (food_entries_userId_YYYY-MM-DD, workout_logs_userId_YYYY-MM-DD, daily_logs_userId_YYYY-MM-DD)
       const [dl, wl, bp, fe] = await Promise.all([
-        getDailyLog(todayKey),
-        getWorkoutLog(todayKey),
-        getBodyProgressList(),
-        getFoodEntries(todayKey),
+        getDailyLog(todayKey, user.id),
+        getWorkoutLog(todayKey, user.id),
+        getBodyProgressList(user.id),
+        getFoodEntries(todayKey, user.id),
       ]);
 
       // If today's key does not exist, initialize state with empty logs [] and 0 workout calories
       const strictlyTodayFood = (fe || []).filter((item) => item.log_date === todayKey);
       const strictlyTodayWorkout =
-        wl && wl.log_date === todayKey ? wl : getEmptyWorkoutLog(todayKey);
+        wl && wl.log_date === todayKey ? wl : getEmptyWorkoutLog(todayKey, user.id);
       const strictlyTodayDaily =
-        dl && dl.log_date === todayKey ? dl : getEmptyDailyLog(todayKey);
+        dl && dl.log_date === todayKey ? dl : getEmptyDailyLog(todayKey, user.id);
 
       setDailyLog(strictlyTodayDaily);
       setWorkoutLog(strictlyTodayWorkout);
@@ -65,10 +67,15 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   // Component initialization: check date change and force delete old local storage data
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     const today = new Date().toDateString();
     const lastOpened = typeof window !== "undefined" ? localStorage.getItem("last_opened_date") : null;
 
@@ -120,15 +127,30 @@ export default function DashboardPage() {
       // Reset all React states (set logs to [], set workout calories to 0)
       const cleanKey = getTodayKey();
       setFoodEntries([]);
-      setWorkoutLog(getEmptyWorkoutLog(cleanKey));
-      setDailyLog(getEmptyDailyLog(cleanKey));
-      getBodyProgressList().then((bp) => setBodyProgressList(bp || []));
+      setWorkoutLog(getEmptyWorkoutLog(cleanKey, user.id));
+      setDailyLog(getEmptyDailyLog(cleanKey, user.id));
+      getBodyProgressList(user.id).then((bp) => setBodyProgressList(bp || []));
       setLoading(false);
       return;
     }
 
     loadTodayData();
-  }, [loadTodayData, refreshKey]);
+  }, [loadTodayData, refreshKey, user]);
+
+  // Auth checking state
+  if (authLoading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs text-slate-400">Memeriksa autentikasi profil...</span>
+      </div>
+    );
+  }
+
+  // Not authenticated -> show Login component
+  if (!user) {
+    return <Login />;
+  }
 
   if (loading || !dailyLog || !workoutLog) {
     return (

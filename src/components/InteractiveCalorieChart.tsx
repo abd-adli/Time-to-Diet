@@ -19,7 +19,7 @@ import { useApp } from "@/context/AppContext";
 import { BarChart3, TrendingDown } from "lucide-react";
 
 export function InteractiveCalorieChart() {
-  const { refreshKey, userConfig } = useApp();
+  const { refreshKey, userConfig, user } = useApp();
   const [daysRange, setDaysRange] = useState<number>(14);
   const [data, setData] = useState<DailyChartDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -31,7 +31,7 @@ export function InteractiveCalorieChart() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const points = await getDailyChartData(daysRange);
+        const points = await getDailyChartData(daysRange, user?.id);
         if (mounted) {
           // Strictly cast every numeric field to guarantee NO #VALUE! or NaN
           const cleaned = points.map((p) => ({
@@ -55,7 +55,7 @@ export function InteractiveCalorieChart() {
     return () => {
       mounted = false;
     };
-  }, [daysRange, refreshKey, userConfig.dailyCalorieTarget, userConfig.baseBmr]);
+  }, [daysRange, refreshKey, userConfig.dailyCalorieTarget, userConfig.baseBmr, user?.id]);
 
   // Average deficit
   const avgDeficit =

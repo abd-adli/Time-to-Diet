@@ -12,6 +12,7 @@ import {
 } from "@/lib/storage";
 import { WORKOUT_SPLITS, PRAYER_PLANKS } from "@/lib/constants";
 import { PlankTimerModal } from "@/components/PlankTimerModal";
+import { Login } from "@/components/Login";
 import {
   Dumbbell,
   Plus,
@@ -28,7 +29,7 @@ import {
 import confetti from "canvas-confetti";
 
 export default function WorkoutPage() {
-  const { selectedDate, refreshKey, triggerRefresh, userConfig } = useApp();
+  const { selectedDate, refreshKey, triggerRefresh, userConfig, user, authLoading } = useApp();
 
   const [workoutLog, setWorkoutLog] = useState<WorkoutLog | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,22 +43,39 @@ export default function WorkoutPage() {
   const [newExWeight, setNewExWeight] = useState(20);
 
   const loadData = useCallback(async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const targetDate = selectedDate || getTodayKey();
-      const log = await getWorkoutLog(targetDate);
-      const cleanLog = log && log.log_date === targetDate ? log : getEmptyWorkoutLog(targetDate);
+      const log = await getWorkoutLog(targetDate, user.id);
+      const cleanLog = log && log.log_date === targetDate ? log : getEmptyWorkoutLog(targetDate, user.id);
       setWorkoutLog(cleanLog);
     } catch (err) {
       console.error("Failed to load workout log:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate]);
+  }, [selectedDate, user]);
 
   useEffect(() => {
     loadData();
   }, [loadData, refreshKey]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-3">
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs text-slate-400">Memeriksa autentikasi profil...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   if (isLoading || !workoutLog) {
     return (
@@ -129,9 +147,10 @@ export default function WorkoutPage() {
 
   // Save Workout Log
   const handleSave = async () => {
+    if (!user) return;
     setIsSaving(true);
     try {
-      await saveWorkoutLog(workoutLog);
+      await saveWorkoutLog(workoutLog, user.id);
       triggerRefresh();
       try {
         confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
@@ -555,7 +574,7 @@ export default function WorkoutPage() {
           onComplete={() => {
             const updated = { ...workoutLog, [activePlankTimer]: true };
             setWorkoutLog(updated);
-            saveWorkoutLog(updated);
+            saveWorkoutLog(updated, user?.id);
             triggerRefresh();
           }}
         />
