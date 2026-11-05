@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useApp } from "@/context/AppContext";
 import { BodyProgress, DailyLog } from "@/lib/types";
 import {
@@ -32,6 +33,7 @@ import {
   CheckCircle2,
   Calendar,
   Sparkles,
+  FileSpreadsheet,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -165,16 +167,26 @@ export default function ProgressPage() {
   return (
     <div className="space-y-6 pb-24 md:pb-12">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
-          <span>Body Progress & Fasting Tracker</span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
-            Wedding Target
-          </span>
-        </h1>
-        <p className="text-xs text-slate-400">
-          Catat berat badan, lingkar perut, serta durasi intermittent fasting (16:8) harian.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
+            <span>Body Progress & Fasting Tracker</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+              Wedding Target
+            </span>
+          </h1>
+          <p className="text-xs text-slate-400">
+            Catat berat badan, lingkar perut, serta durasi intermittent fasting (16:8) harian.
+          </p>
+        </div>
+
+        <Link
+          href="/report"
+          className="self-start sm:self-auto flex items-center space-x-2 px-3.5 py-2 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-600/50 hover:to-indigo-600/50 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold transition shadow"
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          <span>Laporan Detail & CSV</span>
+        </Link>
       </div>
 
       {/* Overview Stat Cards */}

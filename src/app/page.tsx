@@ -26,6 +26,7 @@ import {
   Flame,
   CheckCircle2,
   Clock,
+  FileSpreadsheet,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -177,8 +178,8 @@ export default function DashboardPage() {
         }}
       />
 
-      {/* 3. Quick Action Hub Banner (AI Scanner & Workout Logger Shortcuts) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* 3. Quick Action Hub Banner (AI Scanner, Workout Logger, Full Detail Report & CSV) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {/* Shortcut to AI Food Scanner */}
         <Link
           href="/food"
@@ -190,13 +191,13 @@ export default function DashboardPage() {
             </div>
             <div>
               <div className="font-bold text-sm text-white flex items-center space-x-1.5">
-                <span>AI Camera Food Scanner</span>
+                <span>AI Food Scanner</span>
                 <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
                   Instant
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Foto makanan lokal & hitung otomatis kalori & protein
+                Foto makanan lokal & hitung kalori
               </p>
             </div>
           </div>
@@ -214,17 +215,41 @@ export default function DashboardPage() {
             </div>
             <div>
               <div className="font-bold text-sm text-white flex items-center space-x-1.5">
-                <span>PPL Workout & Kardio</span>
+                <span>PPL Workout</span>
                 <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
                   {workoutLog.split_category || "Push Day"}
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Log beban, repetisi, kardio & habit plank 5 waktu
+                Log beban, repetisi & plank 5 waktu
               </p>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+        </Link>
+
+        {/* Shortcut to Full Detail Report & CSV */}
+        <Link
+          href="/report"
+          className="group relative overflow-hidden bg-gradient-to-r from-purple-900/40 to-pink-900/40 hover:from-purple-900/60 hover:to-pink-900/60 border border-purple-800/50 hover:border-purple-500/50 p-4 rounded-3xl transition-all shadow-lg flex items-center justify-between sm:col-span-2 lg:col-span-1"
+        >
+          <div className="flex items-center space-x-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <FileSpreadsheet className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-bold text-sm text-white flex items-center space-x-1.5">
+                <span>Laporan & CSV</span>
+                <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">
+                  Export
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Detail makanan & latihan mingguan
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-purple-300 group-hover:translate-x-1 transition-all" />
         </Link>
       </div>
 

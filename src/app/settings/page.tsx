@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useApp } from "@/context/AppContext";
 import { UserTargetConfig, DEFAULT_USER_CONFIG } from "@/lib/constants";
 import { getSupabaseCredentials, isSupabaseConfigured, getSupabaseClient } from "@/lib/supabase";
@@ -18,6 +19,7 @@ import {
   ShieldCheck,
   User as UserIcon,
   LogOut,
+  FileSpreadsheet,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { Login } from "@/components/Login";
@@ -463,6 +465,14 @@ export default function SettingsPage() {
         <h2 className="text-sm font-bold text-white">Cadangan Data & Reset</h2>
 
         <div className="flex flex-wrap gap-3">
+          <Link
+            href="/report"
+            className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center space-x-2 transition-all shadow-md"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Laporan Detail & Download CSV Mingguan</span>
+          </Link>
+
           <button
             onClick={handleExportData}
             className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl border border-slate-700 flex items-center space-x-2 transition-colors"
