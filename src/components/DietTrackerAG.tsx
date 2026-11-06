@@ -15,7 +15,18 @@ import {
   RefreshCw,
   AlertCircle,
   Table as TableIcon,
+  BarChart3,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  CartesianGrid,
+} from "recharts";
 import confetti from "canvas-confetti";
 
 export default function DietTrackerAG() {
@@ -192,6 +203,26 @@ export default function DietTrackerAG() {
     } catch {}
   };
 
+  // Helper formatting for chart XAxis (e.g. "06 Nov")
+  const formatShortDate = (dateVal: any) => {
+    if (!dateVal) return "";
+    try {
+      const str = String(dateVal);
+      const d = new Date(str.includes("T") ? str : `${str}T00:00:00`);
+      if (isNaN(d.getTime())) {
+        return str;
+      }
+      return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+    } catch {
+      return String(dateVal);
+    }
+  };
+
+  // Chronological order for charts (oldest to newest)
+  const chartLogs = [...logs].sort(
+    (a, b) => new Date(a.log_date).getTime() - new Date(b.log_date).getTime()
+  );
+
   if (authLoading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
@@ -281,6 +312,204 @@ export default function DietTrackerAG() {
               {d} Hari
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* 1. Existing Calorie / Deficit Tracking Chart */}
+      <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="p-1.5 bg-blue-500/10 text-blue-400 rounded-lg">
+              <Flame className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-white">
+                Daily Calorie / Deficit Tracking
+              </h3>
+              <p className="text-[11px] text-gray-400">
+                Kalori Masuk harian vs Target 1600 kcal
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/20">
+            Target: 1600 kcal
+          </span>
+        </div>
+
+        <div className="w-full h-64 sm:h-72 pt-2">
+          {loading ? (
+            <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+              Memuat grafik kalori...
+            </div>
+          ) : chartLogs.length === 0 ? (
+            <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+              Belum ada data kalori pada rentang ini.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartLogs} margin={{ top: 20, right: 10, left: -15, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis
+                  dataKey="log_date"
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: "#334155" }}
+                  tickFormatter={formatShortDate}
+                />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: "#334155" }}
+                  domain={[0, (dataMax: number) => Math.max(1800, Math.ceil(dataMax * 1.1))]}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const item = payload[0].payload;
+                      const cal = Number(item.calories_in) || 0;
+                      return (
+                        <div className="bg-[#0f172a] border border-gray-700/80 p-3 rounded-xl shadow-xl text-xs space-y-1">
+                          <div className="font-bold text-white border-b border-gray-800 pb-1">
+                            {formatShortDate(label)} ({label})
+                          </div>
+                          <div className="flex justify-between items-center space-x-3 text-blue-400">
+                            <span>Kalori Masuk:</span>
+                            <span className="font-mono font-bold">{cal} kcal</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 pt-0.5">
+                            Target: 1600 kcal ({cal <= 1600 ? "✓ Dalam Batas Target" : "⚠ Melebihi Target"})
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <ReferenceLine
+                  y={1600}
+                  stroke="#ef4444"
+                  strokeDasharray="4 4"
+                  strokeWidth={2}
+                  label={{
+                    value: "Target: 1600 kcal",
+                    fill: "#ef4444",
+                    fontSize: 10,
+                    position: "top",
+                  }}
+                />
+                <Bar
+                  dataKey="calories_in"
+                  fill="#3b82f6"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={32}
+                  name="Kalori Masuk"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {/* 2. Daily Protein Tracking Chart (Positioned right below existing Calorie/Deficit chart) */}
+      <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg">
+              <Flame className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-white">
+                Daily Protein Tracking
+              </h3>
+              <p className="text-[11px] text-gray-400">
+                Asupan protein harian vs target harian 110g
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+            Target: 110g
+          </span>
+        </div>
+
+        <div className="w-full h-64 sm:h-72 pt-2">
+          {loading ? (
+            <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+              Memuat grafik protein...
+            </div>
+          ) : chartLogs.length === 0 ? (
+            <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+              Belum ada data protein pada rentang ini.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartLogs} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis
+                  dataKey="log_date"
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: "#334155" }}
+                  tickFormatter={formatShortDate}
+                />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: "#334155" }}
+                  domain={[0, (dataMax: number) => Math.max(140, Math.ceil(dataMax * 1.15))]}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const item = payload[0].payload;
+                      const prot = Number(item.protein_in) || 0;
+                      const isOptimal = prot >= 110;
+                      return (
+                        <div className="bg-[#0f172a] border border-gray-700/80 p-3 rounded-xl shadow-xl text-xs space-y-1">
+                          <div className="font-bold text-white border-b border-gray-800 pb-1">
+                            {formatShortDate(label)} ({label})
+                          </div>
+                          <div className="flex justify-between items-center space-x-3 text-emerald-400">
+                            <span>Asupan Protein:</span>
+                            <span className="font-mono font-bold">{prot}g</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 pt-0.5">
+                            Status:{" "}
+                            <span className={isOptimal ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                              {isOptimal ? "✓ Target Tercapai (≥110g)" : "⚠ Kurang dari 110g"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <ReferenceLine
+                  y={110}
+                  stroke="#ef4444"
+                  strokeDasharray="4 4"
+                  strokeWidth={2}
+                  label={{
+                    value: "Target: 110g",
+                    fill: "#ef4444",
+                    fontSize: 11,
+                    position: "top",
+                  }}
+                />
+                <Bar
+                  dataKey="protein_in"
+                  fill="#34d399"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={32}
+                  name="Protein (g)"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
