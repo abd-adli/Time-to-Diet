@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
-import { DailyLog, WorkoutLog, BodyProgress, FoodEntry } from "@/lib/types";
+import { DailyLog, WorkoutLog, BodyProgress, FoodEntry, DailyChartDataPoint } from "@/lib/types";
 import {
   getDailyLog,
   getWorkoutLog,
@@ -12,11 +12,22 @@ import {
   getEmptyDailyLog,
   getEmptyWorkoutLog,
   getTodayKey,
+  getDailyChartData,
 } from "@/lib/storage";
 import { HeroCountdown } from "@/components/HeroCountdown";
 import { MacroSummary } from "@/components/MacroSummary";
 import { InteractiveCalorieChart } from "@/components/InteractiveCalorieChart";
 import { Login } from "@/components/Login";
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  CartesianGrid,
+} from "recharts";
 import {
   UtensilsCrossed,
   Dumbbell,
@@ -36,6 +47,7 @@ export default function DashboardPage() {
   const [workoutLog, setWorkoutLog] = useState<WorkoutLog | null>(null);
   const [bodyProgressList, setBodyProgressList] = useState<BodyProgress[]>([]);
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
+  const [dailyChartData, setDailyChartData] = useState<DailyChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Load today's data strictly using ONLY today's date key and active user
@@ -45,11 +57,12 @@ export default function DashboardPage() {
       const todayKey = getTodayKey();
 
       // Fetch date-specific records (food_entries_userId_YYYY-MM-DD, workout_logs_userId_YYYY-MM-DD, daily_logs_userId_YYYY-MM-DD)
-      const [dl, wl, bp, fe] = await Promise.all([
+      const [dl, wl, bp, fe, chartPoints] = await Promise.all([
         getDailyLog(todayKey, user.id),
         getWorkoutLog(todayKey, user.id),
         getBodyProgressList(user.id),
         getFoodEntries(todayKey, user.id),
+        getDailyChartData(14, user.id),
       ]);
 
       // If today's key does not exist, initialize state with empty logs [] and 0 workout calories
@@ -63,6 +76,7 @@ export default function DashboardPage() {
       setWorkoutLog(strictlyTodayWorkout);
       setBodyProgressList(bp || []);
       setFoodEntries(strictlyTodayFood);
+      setDailyChartData(chartPoints || []);
     } catch (err) {
       console.error("Error loading today's dashboard data:", err);
     } finally {
@@ -255,6 +269,96 @@ export default function DashboardPage() {
 
       {/* 4. Synchronized Interactive Calorie Chart (Recharts) */}
       <InteractiveCalorieChart />
+
+      {/* Daily Protein Tracking Chart */}
+      <div className="mt-6 bg-[#0f172a] p-4 rounded-xl border border-gray-800">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-white">
+            🍗 Pelacakan Protein Harian (Target: 110g)
+          </h3>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+            Target: 110g
+          </span>
+        </div>
+
+        <div className="w-full h-64 sm:h-72">
+          {loading ? (
+            <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+              Memuat grafik protein...
+            </div>
+          ) : dailyChartData.length === 0 ? (
+            <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+              Belum ada data protein.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={dailyChartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: "#334155" }}
+                />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: "#334155" }}
+                  domain={[0, (dataMax: number) => Math.max(140, Math.ceil(dataMax * 1.15))]}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const item = payload[0].payload;
+                      const prot = Number(item.proteinIn ?? item.protein_in) || 0;
+                      const isOptimal = prot >= 110;
+                      return (
+                        <div className="bg-[#0f172a] border border-gray-700/80 p-3 rounded-xl shadow-xl text-xs space-y-1">
+                          <div className="font-bold text-white border-b border-gray-800 pb-1">
+                            {label} ({item.fullDate || label})
+                          </div>
+                          <div className="flex justify-between items-center space-x-3 text-emerald-400">
+                            <span>Asupan Protein:</span>
+                            <span className="font-mono font-bold">{prot}g</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 pt-0.5">
+                            Status:{" "}
+                            <span className={isOptimal ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                              {isOptimal ? "✓ Target Tercapai (≥110g)" : "⚠ Kurang dari 110g"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <ReferenceLine
+                  y={110}
+                  stroke="#ef4444"
+                  strokeDasharray="4 4"
+                  strokeWidth={2}
+                  label={{
+                    value: "Target: 110g",
+                    fill: "#ef4444",
+                    fontSize: 11,
+                    position: "top",
+                  }}
+                />
+                <Bar
+                  dataKey="proteinIn"
+                  fill="#34d399"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={32}
+                  name="Protein (g)"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
 
       {/* 5. Food Entries Log Snippet for Today */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">

@@ -37,6 +37,8 @@ export function InteractiveCalorieChart() {
           const cleaned = points.map((p) => ({
             ...p,
             caloriesIn: Number(p.caloriesIn) || 0,
+            proteinIn: Number(p.proteinIn) || 0,
+            protein_in: Number(p.proteinIn) || 0,
             caloriesBurned: Number(p.caloriesBurned) || 0,
             bmr: Number(p.bmr) || 2056,
             totalExpenditure: Number(p.totalExpenditure) || 2056,

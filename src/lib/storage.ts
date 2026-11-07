@@ -836,6 +836,7 @@ export async function getDailyChartData(
     const workoutLog = await getWorkoutLog(dateStr, userId);
 
     const caloriesIn = foodEntries.reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
+    const proteinIn = foodEntries.reduce((sum, item) => sum + (Number(item.protein) || 0), 0);
     const caloriesBurned = Number(workoutLog.workout_calories_burned) || 0;
     const totalExpenditure = bmr + caloriesBurned;
     const netDeficit = totalExpenditure - caloriesIn;
@@ -849,6 +850,8 @@ export async function getDailyChartData(
       date: dateLabel,
       fullDate: dateStr,
       caloriesIn: Math.round(caloriesIn),
+      proteinIn: Math.round(proteinIn),
+      protein_in: Math.round(proteinIn),
       caloriesBurned: Math.round(caloriesBurned),
       bmr: Math.round(bmr),
       totalExpenditure: Math.round(totalExpenditure),

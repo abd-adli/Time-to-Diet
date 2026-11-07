@@ -324,7 +324,7 @@ export default function DietTrackerAG() {
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-white">
-                Daily Calorie / Deficit Tracking
+                Pelacakan Kalori Harian (Masuk vs Target 1600 kcal)
               </h3>
               <p className="text-[11px] text-gray-400">
                 Kalori Masuk harian vs Target 1600 kcal
@@ -413,20 +413,12 @@ export default function DietTrackerAG() {
       </div>
 
       {/* 2. Daily Protein Tracking Chart (Positioned right below existing Calorie/Deficit chart) */}
-      <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-3">
-        <div className="flex items-center justify-between">
+      <div className="mt-6 bg-[#0f172a] p-4 rounded-xl border border-gray-800">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
-            <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg">
-              <Flame className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-white">
-                Daily Protein Tracking
-              </h3>
-              <p className="text-[11px] text-gray-400">
-                Asupan protein harian vs target harian 110g
-              </p>
-            </div>
+            <h3 className="text-sm sm:text-base font-bold text-white">
+              🍗 Pelacakan Protein Harian (Target: 110g)
+            </h3>
           </div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
             Target: 110g

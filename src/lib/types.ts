@@ -82,6 +82,8 @@ export interface DailyChartDataPoint {
   date: string; // '01 Nov', 'Nov 1'
   fullDate: string; // '2026-11-01'
   caloriesIn: number;
+  proteinIn: number;
+  protein_in?: number;
   caloriesBurned: number;
   bmr: number;
   totalExpenditure: number; // BMR + caloriesBurned
