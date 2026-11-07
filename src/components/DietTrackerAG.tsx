@@ -530,34 +530,34 @@ export default function DietTrackerAG() {
           </div>
         ) : (
           <div className="w-full overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
+            <table className="w-full text-left text-sm">
               <thead className="bg-slate-800/90 text-slate-300 text-xs uppercase tracking-wider">
                 <tr>
-                  <th className="p-3.5">Tanggal</th>
-                  <th className="p-3.5">Kalori & Protein</th>
-                  <th className="p-3.5">Menu Makanan Detail</th>
-                  <th className="p-3.5">Sesi Latihan PPL</th>
-                  <th className="p-3.5">Fasting</th>
+                  <th className="p-3.5 whitespace-nowrap">Tanggal</th>
+                  <th className="p-3.5 whitespace-nowrap">Kalori & Protein</th>
+                  <th className="p-3.5 min-w-[250px]">Menu Makanan Detail</th>
+                  <th className="p-3.5 min-w-[250px]">Sesi Latihan PPL</th>
+                  <th className="p-3.5 whitespace-nowrap">Fasting</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {logs.map((log) => (
                   <tr key={log.id || log.log_date} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-3.5 font-medium text-slate-200">
+                    <td className="p-3.5 font-medium text-slate-200 align-top whitespace-nowrap">
                       <span className="font-mono text-xs">{log.log_date}</span>
                     </td>
-                    <td className="p-3.5">
+                    <td className="p-3.5 align-top whitespace-nowrap">
                       <span className="text-amber-400 font-bold">{log.calories_in} kcal</span>
                       <br />
                       <span className="text-emerald-400 font-medium text-xs">{log.protein_in}g protein</span>
                     </td>
-                    <td className="p-3.5 text-slate-300 max-w-xs sm:max-w-md truncate" title={log.food_details}>
+                    <td className="p-3.5 text-slate-300 whitespace-normal break-words min-w-[250px] align-top" title={log.food_details}>
                       {log.food_details}
                     </td>
-                    <td className="p-3.5 text-blue-300 max-w-xs sm:max-w-md truncate" title={log.workout_details}>
+                    <td className="p-3.5 text-blue-300 whitespace-normal break-words min-w-[250px] align-top" title={log.workout_details}>
                       {log.workout_details}
                     </td>
-                    <td className="p-3.5 text-slate-400 text-xs">
+                    <td className="p-3.5 text-slate-400 text-xs align-top whitespace-nowrap">
                       {log.fasting_hours ? `${log.fasting_hours} jam` : "-"}
                     </td>
                   </tr>
