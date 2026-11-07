@@ -186,7 +186,8 @@ export default function DietTrackerAG() {
       `"${String(log.notes || "").replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+    const csvContent =
+      "\uFEFF" + [headers.join(";"), ...rows.map((row) => row.join(";"))].join("\r\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -528,7 +529,7 @@ export default function DietTrackerAG() {
             <p>Belum ada data tercatat dalam rentang waktu ini.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-slate-800/90 text-slate-300 text-xs uppercase tracking-wider">
                 <tr>
