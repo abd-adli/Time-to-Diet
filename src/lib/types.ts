@@ -32,6 +32,13 @@ export type ExerciseCategory =
   | "Gerakan Isolasi / Lengan"
   | "Finisher / Tambahan";
 
+export type BroWorkoutSplit =
+  | "Chest Day"
+  | "Back Day"
+  | "Shoulder Day"
+  | "Leg Day"
+  | "Arm Day";
+
 export interface ExerciseItem {
   name?: string;
   exercise_name?: string;

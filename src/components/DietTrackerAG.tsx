@@ -277,6 +277,57 @@ export default function DietTrackerAG() {
     }
   };
 
+  // Dynamic Split Badge styling for Bro Split (Chest, Back, Shoulder, Leg, Arm) & PPL
+  const getSplitBadgeStyle = (split: string) => {
+    const s = (split || "").toLowerCase();
+    if (s.includes("chest") || s.includes("dada")) {
+      return {
+        badge: "bg-rose-500/15 border-rose-500/30 text-rose-400",
+        icon: "text-rose-400",
+      };
+    }
+    if (s.includes("back") || s.includes("punggung")) {
+      return {
+        badge: "bg-blue-500/15 border-blue-500/30 text-blue-400",
+        icon: "text-blue-400",
+      };
+    }
+    if (s.includes("shoulder") || s.includes("bahu") || s.includes("delt")) {
+      return {
+        badge: "bg-purple-500/15 border-purple-500/30 text-purple-400",
+        icon: "text-purple-400",
+      };
+    }
+    if (s.includes("leg") || s.includes("kaki") || s.includes("quad")) {
+      return {
+        badge: "bg-emerald-500/15 border-emerald-500/30 text-emerald-400",
+        icon: "text-emerald-400",
+      };
+    }
+    if (s.includes("arm") || s.includes("lengan") || s.includes("bicep") || s.includes("tricep")) {
+      return {
+        badge: "bg-amber-500/15 border-amber-500/30 text-amber-400",
+        icon: "text-amber-400",
+      };
+    }
+    if (s.includes("push")) {
+      return {
+        badge: "bg-rose-500/15 border-rose-500/30 text-rose-400",
+        icon: "text-rose-400",
+      };
+    }
+    if (s.includes("pull")) {
+      return {
+        badge: "bg-blue-500/15 border-blue-500/30 text-blue-400",
+        icon: "text-blue-400",
+      };
+    }
+    return {
+      badge: "bg-slate-800/80 border-slate-700 text-slate-300",
+      icon: "text-slate-400",
+    };
+  };
+
   // Chronological order for charts (oldest to newest)
   const chartLogs = [...logs].sort(
     (a, b) => new Date(a.log_date).getTime() - new Date(b.log_date).getTime()
@@ -619,15 +670,22 @@ export default function DietTrackerAG() {
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/30 text-blue-400 text-[11px] font-bold tracking-wide">
-                              <Dumbbell className="w-3 h-3 text-blue-400" />
-                              <span>{log.workout_split || "Latihan PPL"}</span>
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-400">
-                              {log.structured_exercises.length} Gerakan
-                            </span>
-                          </div>
+                          {(() => {
+                            const splitStyle = getSplitBadgeStyle(log.workout_split);
+                            return (
+                              <div className="flex items-center justify-between">
+                                <span
+                                  className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-bold tracking-wide ${splitStyle.badge}`}
+                                >
+                                  <Dumbbell className={`w-3 h-3 ${splitStyle.icon}`} />
+                                  <span>{log.workout_split || "Bro Split"}</span>
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400">
+                                  {log.structured_exercises.length} Gerakan
+                                </span>
+                              </div>
+                            );
+                          })()}
 
                           {/* Structured Spreadsheet Mini-Table (Progressive Overload) */}
                           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden text-xs divide-y divide-slate-800/80 shadow-md">

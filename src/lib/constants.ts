@@ -165,6 +165,78 @@ export interface SplitCategory {
 }
 
 export const WORKOUT_SPLITS: Record<string, SplitCategory> = {
+  "Chest Day": {
+    id: "Chest Day",
+    name: "Chest Day (Dada & Pecs Focus)",
+    description: "Incline dumbbell press, flat barbell bench, machine press, and cable chest flyes",
+    color: "from-rose-500 to-red-600",
+    defaultCaloriesBurned: 420,
+    templates: [
+      { name: "Incline Dumbbell Press", sets: 4, reps: 10, weight_kg: 26 },
+      { name: "Flat Barbell Bench Press", sets: 3, reps: 8, weight_kg: 60 },
+      { name: "Incline Machine Chest Press", sets: 3, reps: 12, weight_kg: 50 },
+      { name: "Cable Chest Flyes (Pec Focus)", sets: 4, reps: 15, weight_kg: 15 },
+      { name: "Chest Dips / Pushups Burnout", sets: 3, reps: 12, weight_kg: 0 },
+    ],
+  },
+  "Back Day": {
+    id: "Back Day",
+    name: "Back Day (Punggung & Lats Width/Thickness)",
+    description: "Heavy lat pulldown, chest supported row, seated cable row, and deadlift variations",
+    color: "from-blue-500 to-indigo-600",
+    defaultCaloriesBurned: 450,
+    templates: [
+      { name: "Lat Pulldown (Neutral or Wide Grip)", sets: 4, reps: 10, weight_kg: 60 },
+      { name: "Chest Supported Dumbbell Row", sets: 4, reps: 10, weight_kg: 24 },
+      { name: "Seated Cable Row (Close Grip)", sets: 3, reps: 12, weight_kg: 55 },
+      { name: "Straight Arm Cable Pulldown", sets: 3, reps: 15, weight_kg: 20 },
+      { name: "Barbell / Dumbbell Shrugs", sets: 4, reps: 12, weight_kg: 26 },
+    ],
+  },
+  "Shoulder Day": {
+    id: "Shoulder Day",
+    name: "Shoulder Day (Bahu 3D Delts)",
+    description: "Overhead dumbbell press, strict lateral raises, rear delt flyes, and cable work",
+    color: "from-purple-500 to-violet-600",
+    defaultCaloriesBurned: 400,
+    templates: [
+      { name: "Seated Overhead Dumbbell Press", sets: 4, reps: 10, weight_kg: 18 },
+      { name: "Dumbbell Lateral Raises (Strict Tempo)", sets: 4, reps: 15, weight_kg: 10 },
+      { name: "Cable Lateral Raises", sets: 3, reps: 15, weight_kg: 7 },
+      { name: "Reverse Pec Deck / Rear Delt Flyes", sets: 4, reps: 15, weight_kg: 35 },
+      { name: "Face Pulls (Rope Cable)", sets: 3, reps: 15, weight_kg: 18 },
+    ],
+  },
+  "Leg Day": {
+    id: "Leg Day",
+    name: "Leg Day (Quads, Hamstrings & Calves)",
+    description: "Barbell squats, Romanian deadlift (RDL), leg press, and leg curls",
+    color: "from-emerald-500 to-teal-600",
+    defaultCaloriesBurned: 520,
+    templates: [
+      { name: "Barbell Back Squats / Hack Squat", sets: 4, reps: 8, weight_kg: 80 },
+      { name: "Romanian Deadlift (Dumbbell or Barbell)", sets: 4, reps: 10, weight_kg: 65 },
+      { name: "Leg Press", sets: 3, reps: 12, weight_kg: 130 },
+      { name: "Leg Extensions (Quads Burnout)", sets: 3, reps: 15, weight_kg: 45 },
+      { name: "Seated Hamstring Leg Curls", sets: 4, reps: 12, weight_kg: 40 },
+      { name: "Standing Calf Raises", sets: 4, reps: 20, weight_kg: 60 },
+    ],
+  },
+  "Arm Day": {
+    id: "Arm Day",
+    name: "Arm Day (Biceps & Triceps Gun Show)",
+    description: "Close grip press, incline bicep curls, skull crushers, preacher curls, and tricep pushdowns",
+    color: "from-amber-500 to-orange-600",
+    defaultCaloriesBurned: 380,
+    templates: [
+      { name: "Close Grip Bench Press / Dip Machine", sets: 3, reps: 10, weight_kg: 50 },
+      { name: "Incline Dumbbell Bicep Curls", sets: 4, reps: 12, weight_kg: 14 },
+      { name: "Overhead Rope Tricep Extension", sets: 3, reps: 12, weight_kg: 20 },
+      { name: "Preacher Curls (EZ Bar or Machine)", sets: 3, reps: 12, weight_kg: 25 },
+      { name: "Tricep Straight Bar Pushdowns", sets: 4, reps: 15, weight_kg: 25 },
+      { name: "Dumbbell Hammer Curls", sets: 3, reps: 12, weight_kg: 14 },
+    ],
+  },
   "Push Day": {
     id: "Push Day",
     name: "Push Day (Chest, Shoulders, Triceps)",
