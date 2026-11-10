@@ -145,12 +145,23 @@ export default function WorkoutPage() {
     setWorkoutLog(updated);
   };
 
-  // Save Workout Log
+  // Save Workout Log (Filters only checked / completed exercises)
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
     try {
-      await saveWorkoutLog(workoutLog, user.id);
+      // Filter only checked / completed exercises so unselected preset items are not inserted into Supabase
+      const selectedExercises = (workoutLog.exercises || []).filter(
+        (ex) => Boolean(ex.completed || (ex as any).checked)
+      );
+
+      const payload: WorkoutLog = {
+        ...workoutLog,
+        exercises: selectedExercises,
+      };
+
+      await saveWorkoutLog(payload, user.id);
+      setWorkoutLog(payload);
       triggerRefresh();
       try {
         confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
