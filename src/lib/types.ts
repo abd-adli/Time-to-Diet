@@ -26,8 +26,16 @@ export interface FoodEntry {
   created_at?: string;
 }
 
+export type ExerciseCategory =
+  | "Gerakan Utama"
+  | "Gerakan Pendukung"
+  | "Gerakan Isolasi / Lengan"
+  | "Finisher / Tambahan";
+
 export interface ExerciseItem {
-  name: string;
+  name?: string;
+  exercise_name?: string;
+  category?: ExerciseCategory | string;
   sets: number;
   reps: number;
   weight_kg: number;
@@ -40,6 +48,7 @@ export interface WorkoutLog {
   log_date: string; // YYYY-MM-DD
   split_category: string;
   exercises: ExerciseItem[];
+  workout_details?: ExerciseItem[];
   cardio_minutes: number;
   plank_subuh: boolean;
   plank_dzuhur: boolean;

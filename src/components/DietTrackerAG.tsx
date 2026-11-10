@@ -132,11 +132,67 @@ export default function DietTrackerAG() {
 
       // Cari latihan di tanggal yang sama
       const dateWorkouts = workoutData.filter((w: any) => w.log_date === dateStr);
+
+      // Parse structured exercise list for Progressive Overload tracking
+      const structuredExercises = dateWorkouts.flatMap((w: any) => {
+        const rawList = Array.isArray(w.workout_details) && w.workout_details.length > 0
+          ? w.workout_details
+          : (Array.isArray(w.exercises) ? w.exercises : []);
+
+        return rawList.map((ex: any) => {
+          const exName = ex.exercise_name || ex.name || "Gerakan";
+          let category = ex.category;
+          if (!category) {
+            const lower = exName.toLowerCase();
+            if (
+              lower.includes("press") ||
+              lower.includes("squat") ||
+              lower.includes("pulldown") ||
+              lower.includes("deadlift")
+            ) {
+              category = "Gerakan Utama";
+            } else if (
+              lower.includes("row") ||
+              lower.includes("rdl") ||
+              lower.includes("lunge") ||
+              lower.includes("dip")
+            ) {
+              category = "Gerakan Pendukung";
+            } else if (
+              lower.includes("curl") ||
+              lower.includes("tricep") ||
+              lower.includes("lateral") ||
+              lower.includes("extension") ||
+              lower.includes("pushdown")
+            ) {
+              category = "Gerakan Isolasi / Lengan";
+            } else {
+              category = "Finisher / Tambahan";
+            }
+          }
+
+          return {
+            exercise_name: exName,
+            category,
+            sets: Number(ex.sets) || 3,
+            reps: Number(ex.reps) || 10,
+            weight_kg: Number(ex.weight_kg) || 0,
+            completed: ex.completed ?? true,
+            split_category: w.split_category || "Latihan PPL",
+          };
+        });
+      });
+
+      const workoutSplitName = dateWorkouts.length > 0 ? dateWorkouts[0].split_category : null;
+
       const workoutList = dateWorkouts
         .map((w: any) => {
+          const raw = Array.isArray(w.workout_details) && w.workout_details.length > 0 ? w.workout_details : w.exercises;
           let exercisesStr = "";
-          if (w.exercises && Array.isArray(w.exercises)) {
-            exercisesStr = w.exercises.map((ex: any) => ex.name).join(", ");
+          if (raw && Array.isArray(raw)) {
+            exercisesStr = raw
+              .map((ex: any) => `${ex.exercise_name || ex.name} (${ex.sets || 3}x${ex.reps || 10} @ ${ex.weight_kg || 0}kg)`)
+              .join(", ");
           }
           const cat = w.split_category || "Latihan";
           return exercisesStr ? `[${cat}] ${exercisesStr}` : `[${cat}]`;
@@ -150,6 +206,8 @@ export default function DietTrackerAG() {
         protein_in: day.protein_in || calculatedProtein || 0,
         food_details: foodList || "Tidak ada catatan makanan",
         workout_details: workoutList || "Rest Day / Tidak ada latihan",
+        structured_exercises: structuredExercises,
+        workout_split: workoutSplitName,
       };
     }).sort((a, b) => new Date(b.log_date).getTime() - new Date(a.log_date).getTime());
 
@@ -554,8 +612,75 @@ export default function DietTrackerAG() {
                     <td className="p-3.5 text-slate-300 whitespace-normal break-words min-w-[250px] align-top" title={log.food_details}>
                       {log.food_details}
                     </td>
-                    <td className="p-3.5 text-blue-300 whitespace-normal break-words min-w-[250px] align-top" title={log.workout_details}>
-                      {log.workout_details}
+                    <td className="p-3.5 align-top min-w-[320px]">
+                      {(!log.structured_exercises || log.structured_exercises.length === 0) ? (
+                        <div className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800 text-slate-400 text-xs italic">
+                          <span>{log.workout_details || "Rest Day / Tidak ada latihan"}</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/30 text-blue-400 text-[11px] font-bold tracking-wide">
+                              <Dumbbell className="w-3 h-3 text-blue-400" />
+                              <span>{log.workout_split || "Latihan PPL"}</span>
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-400">
+                              {log.structured_exercises.length} Gerakan
+                            </span>
+                          </div>
+
+                          {/* Structured Spreadsheet Mini-Table (Progressive Overload) */}
+                          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden text-xs divide-y divide-slate-800/80 shadow-md">
+                            {log.structured_exercises.map((ex: any, idx: number) => {
+                              const categoryBadges: Record<string, string> = {
+                                "Gerakan Utama": "bg-blue-500/15 text-blue-300 border-blue-500/30",
+                                "Gerakan Pendukung": "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
+                                "Gerakan Isolasi / Lengan": "bg-purple-500/15 text-purple-300 border-purple-500/30",
+                                "Finisher / Tambahan": "bg-amber-500/15 text-amber-300 border-amber-500/30",
+                              };
+                              const catStyle =
+                                categoryBadges[ex.category] || "bg-slate-800/80 text-slate-300 border-slate-700/60";
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className="p-2 flex items-center justify-between gap-2.5 hover:bg-slate-900/60 transition-colors"
+                                >
+                                  <div className="flex-1 min-w-0 pr-1">
+                                    <div
+                                      className="font-medium text-slate-200 truncate leading-tight"
+                                      title={ex.exercise_name}
+                                    >
+                                      {ex.exercise_name}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${catStyle}`}>
+                                        {ex.category}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Progressive Overload Data: Sets x Reps & Weight */}
+                                  <div className="flex items-center gap-1.5 flex-shrink-0 font-mono text-[11px]">
+                                    <span
+                                      className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300"
+                                      title="Sets × Reps"
+                                    >
+                                      {ex.sets} × {ex.reps}
+                                    </span>
+                                    <span
+                                      className="px-2 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-blue-400 font-bold"
+                                      title="Weight (kg)"
+                                    >
+                                      {ex.weight_kg} kg
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </td>
                     <td className="p-3.5 text-slate-400 text-xs align-top whitespace-nowrap">
                       {log.fasting_hours ? `${log.fasting_hours} jam` : "-"}
