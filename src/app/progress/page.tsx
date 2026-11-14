@@ -47,6 +47,8 @@ export default function ProgressPage() {
   // Body log input
   const [inputWeight, setInputWeight] = useState("");
   const [inputWaist, setInputWaist] = useState("");
+  const [skeletalMuscle, setSkeletalMuscle] = useState("");
+  const [bodyFat, setBodyFat] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   // Fasting input
@@ -73,10 +75,30 @@ export default function ProgressPage() {
       if (currentEntry) {
         setInputWeight(String(currentEntry.weight_kg));
         setInputWaist(String(currentEntry.waist_cm));
+        setSkeletalMuscle(
+          currentEntry.skeletal_muscle !== undefined && currentEntry.skeletal_muscle !== null
+            ? String(currentEntry.skeletal_muscle)
+            : ""
+        );
+        setBodyFat(
+          currentEntry.body_fat_percentage !== undefined && currentEntry.body_fat_percentage !== null
+            ? String(currentEntry.body_fat_percentage)
+            : ""
+        );
       } else {
         const last = list[list.length - 1];
         setInputWeight(last ? String(last.weight_kg) : String(userConfig.startingWeight));
         setInputWaist(last ? String(last.waist_cm) : "107");
+        setSkeletalMuscle(
+          last?.skeletal_muscle !== undefined && last?.skeletal_muscle !== null
+            ? String(last.skeletal_muscle)
+            : ""
+        );
+        setBodyFat(
+          last?.body_fat_percentage !== undefined && last?.body_fat_percentage !== null
+            ? String(last.body_fat_percentage)
+            : ""
+        );
       }
     } catch (err) {
       console.error("Failed to load progress data:", err);
@@ -102,6 +124,8 @@ export default function ProgressPage() {
           log_date: targetDate,
           weight_kg: parseFloat(inputWeight),
           waist_cm: parseFloat(inputWaist),
+          skeletal_muscle: skeletalMuscle ? parseFloat(skeletalMuscle) : undefined,
+          body_fat_percentage: bodyFat ? parseFloat(bodyFat) : undefined,
         },
         user.id
       );
@@ -149,6 +173,14 @@ export default function ProgressPage() {
   const latestEntry = progressList[progressList.length - 1];
   const currentWeight = latestEntry ? latestEntry.weight_kg : startingWeight;
   const currentWaist = latestEntry ? latestEntry.waist_cm : 107;
+  const currentSkeletalMuscle =
+    latestEntry?.skeletal_muscle !== undefined && latestEntry.skeletal_muscle !== null
+      ? latestEntry.skeletal_muscle
+      : "-";
+  const currentBodyFat =
+    latestEntry?.body_fat_percentage !== undefined && latestEntry.body_fat_percentage !== null
+      ? latestEntry.body_fat_percentage
+      : "-";
 
   const totalWeightLoss = Number((startingWeight - currentWeight).toFixed(1));
   const totalWaistLoss = Number((110 - currentWaist).toFixed(1));
@@ -176,7 +208,7 @@ export default function ProgressPage() {
             </span>
           </h1>
           <p className="text-xs text-slate-400">
-            Catat berat badan, lingkar perut, serta durasi intermittent fasting (16:8) harian.
+            Catat berat badan, lingkar perut, komposisi tubuh, serta durasi intermittent fasting (16:8) harian.
           </p>
         </div>
 
@@ -189,9 +221,10 @@ export default function ProgressPage() {
         </Link>
       </div>
 
-      {/* Overview Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl">
+      {/* Overview Stat Cards (Responsive Grid 2 columns mobile, 3 columns desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {/* 1. Berat Saat Ini */}
+        <div className="bg-[#151A25] border border-gray-800 rounded-xl p-4 shadow-xl">
           <span className="text-[11px] text-slate-400 font-medium">Berat Saat Ini</span>
           <div className="text-2xl font-black text-white font-mono mt-1">
             {currentWeight} <span className="text-xs text-slate-400 font-sans font-normal">kg</span>
@@ -201,7 +234,8 @@ export default function ProgressPage() {
           </div>
         </div>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl">
+        {/* 2. Lingkar Pinggang */}
+        <div className="bg-[#151A25] border border-gray-800 rounded-xl p-4 shadow-xl">
           <span className="text-[11px] text-slate-400 font-medium">Lingkar Pinggang</span>
           <div className="text-2xl font-black text-cyan-400 font-mono mt-1">
             {currentWaist} <span className="text-xs text-slate-400 font-sans font-normal">cm</span>
@@ -211,7 +245,30 @@ export default function ProgressPage() {
           </div>
         </div>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl">
+        {/* 3. Massa Otot (kg) */}
+        <div className="bg-[#151A25] border border-gray-800 rounded-xl p-4 shadow-xl">
+          <span className="text-[11px] text-slate-400 font-medium">Massa Otot</span>
+          <div className="text-2xl font-black text-white font-mono mt-1">
+            {currentSkeletalMuscle} <span className="text-xs text-slate-400 font-sans font-normal">{currentSkeletalMuscle !== "-" ? "kg" : ""}</span>
+          </div>
+          <div className="text-[10px] text-green-400 font-semibold mt-1">
+            Target: Naik perlahan
+          </div>
+        </div>
+
+        {/* 4. Body Fat (%) */}
+        <div className="bg-[#151A25] border border-gray-800 rounded-xl p-4 shadow-xl">
+          <span className="text-[11px] text-slate-400 font-medium">Body Fat</span>
+          <div className="text-2xl font-black text-white font-mono mt-1">
+            {currentBodyFat} <span className="text-xs text-slate-400 font-sans font-normal">{currentBodyFat !== "-" ? "%" : ""}</span>
+          </div>
+          <div className="text-[10px] text-green-400 font-semibold mt-1">
+            Target: &lt; 15%
+          </div>
+        </div>
+
+        {/* 5. Target Defisit */}
+        <div className="bg-[#151A25] border border-gray-800 rounded-xl p-4 shadow-xl">
           <span className="text-[11px] text-slate-400 font-medium">Target Defisit</span>
           <div className="text-2xl font-black text-amber-400 font-mono mt-1">
             1600 <span className="text-xs text-slate-400 font-sans font-normal">kcal</span>
@@ -221,7 +278,8 @@ export default function ProgressPage() {
           </div>
         </div>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl">
+        {/* 6. Intermittent Fasting */}
+        <div className="bg-[#151A25] border border-gray-800 rounded-xl p-4 shadow-xl">
           <span className="text-[11px] text-slate-400 font-medium">Intermittent Fasting</span>
           <div className="text-2xl font-black text-emerald-400 font-mono mt-1">
             {fastingHours} <span className="text-xs text-slate-400 font-sans font-normal">jam</span>
@@ -243,55 +301,89 @@ export default function ProgressPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSaveProgress} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <div>
-            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-              Berat Badan (kg):
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              value={inputWeight}
-              onChange={(e) => setInputWeight(e.target.value)}
-              required
-              className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-emerald-500"
-            />
+        <form onSubmit={handleSaveProgress} className="space-y-4">
+          {/* Row 1: Existing Fields */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                Berat Badan (kg):
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={inputWeight}
+                onChange={(e) => setInputWeight(e.target.value)}
+                required
+                className="w-full bg-[#1A1F2E] border border-gray-700 text-white rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                Lingkar Pinggang (cm):
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                value={inputWaist}
+                onChange={(e) => setInputWaist(e.target.value)}
+                required
+                className="w-full bg-[#1A1F2E] border border-gray-700 text-white rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                Durasi Puasa IF (Jam):
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="24"
+                value={fastingHours}
+                onChange={(e) => setFastingHours(parseFloat(e.target.value) || 0)}
+                className="w-full bg-[#1A1F2E] border border-gray-700 text-white rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-              Lingkar Pinggang (cm):
-            </label>
-            <input
-              type="number"
-              step="0.5"
-              value={inputWaist}
-              onChange={(e) => setInputWaist(e.target.value)}
-              required
-              className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-cyan-500"
-            />
+          {/* Row 2: Gym Scale Body Composition Inputs (Below existing fields) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-800/80">
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                Massa Otot (kg):
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="Contoh: 32.5"
+                value={skeletalMuscle}
+                onChange={(e) => setSkeletalMuscle(e.target.value)}
+                className="w-full bg-[#1A1F2E] border border-gray-700 text-white rounded-xl px-3 py-2 text-xs font-mono font-bold placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                Body Fat (%):
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="Contoh: 18.2"
+                value={bodyFat}
+                onChange={(e) => setBodyFat(e.target.value)}
+                className="w-full bg-[#1A1F2E] border border-gray-700 text-white rounded-xl px-3 py-2 text-xs font-mono font-bold placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-              Durasi Puasa IF (Jam):
-            </label>
-            <input
-              type="number"
-              step="0.5"
-              min="0"
-              max="24"
-              value={fastingHours}
-              onChange={(e) => setFastingHours(parseFloat(e.target.value) || 0)}
-              className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-amber-500"
-            />
-          </div>
-
-          <div className="flex items-end">
+          <div className="flex justify-end pt-1">
             <button
               type="submit"
               disabled={isSaving}
-              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center space-x-1.5"
+              className="w-full sm:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? "Menyimpan..." : "Simpan Data"}</span>

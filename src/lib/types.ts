@@ -73,6 +73,8 @@ export interface BodyProgress {
   log_date: string; // YYYY-MM-DD
   weight_kg: number;
   waist_cm: number;
+  skeletal_muscle?: number;
+  body_fat_percentage?: number;
   created_at?: string;
 }
 

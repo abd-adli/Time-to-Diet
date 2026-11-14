@@ -724,6 +724,14 @@ export async function getBodyProgressList(explicitUserId?: string): Promise<Body
           log_date: item.log_date,
           weight_kg: Number(item.weight_kg) || 0,
           waist_cm: Number(item.waist_cm) || 0,
+          skeletal_muscle:
+            item.skeletal_muscle !== null && item.skeletal_muscle !== undefined
+              ? Number(item.skeletal_muscle)
+              : undefined,
+          body_fat_percentage:
+            item.body_fat_percentage !== null && item.body_fat_percentage !== undefined
+              ? Number(item.body_fat_percentage)
+              : undefined,
           created_at: item.created_at,
         }));
       }
@@ -752,6 +760,8 @@ export async function saveBodyProgress(
     log_date: string;
     weight_kg: number;
     waist_cm: number;
+    skeletal_muscle?: number;
+    body_fat_percentage?: number;
   },
   explicitUserId?: string
 ): Promise<BodyProgress> {
@@ -763,23 +773,36 @@ export async function saveBodyProgress(
     log_date: targetDate,
     weight_kg: Number(entry.weight_kg) || 0,
     waist_cm: Number(entry.waist_cm) || 0,
+    skeletal_muscle:
+      entry.skeletal_muscle !== undefined && !isNaN(entry.skeletal_muscle)
+        ? Number(entry.skeletal_muscle)
+        : undefined,
+    body_fat_percentage:
+      entry.body_fat_percentage !== undefined && !isNaN(entry.body_fat_percentage)
+        ? Number(entry.body_fat_percentage)
+        : undefined,
     created_at: new Date().toISOString(),
   };
 
   const supabase = getSupabaseClient();
   if (supabase && userId && userId !== "guest") {
     try {
+      const payload: any = {
+        user_id: userId,
+        log_date: targetDate,
+        weight_kg: newEntry.weight_kg,
+        waist_cm: newEntry.waist_cm,
+      };
+      if (newEntry.skeletal_muscle !== undefined) {
+        payload.skeletal_muscle = newEntry.skeletal_muscle;
+      }
+      if (newEntry.body_fat_percentage !== undefined) {
+        payload.body_fat_percentage = newEntry.body_fat_percentage;
+      }
+
       const { data, error } = await supabase
         .from("body_progress")
-        .upsert(
-          {
-            user_id: userId,
-            log_date: targetDate,
-            weight_kg: newEntry.weight_kg,
-            waist_cm: newEntry.waist_cm,
-          },
-          { onConflict: "user_id,log_date" }
-        )
+        .upsert(payload, { onConflict: "user_id,log_date" })
         .select()
         .single();
 
