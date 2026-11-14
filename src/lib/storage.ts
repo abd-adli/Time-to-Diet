@@ -732,6 +732,18 @@ export async function getBodyProgressList(explicitUserId?: string): Promise<Body
             item.body_fat_percentage !== null && item.body_fat_percentage !== undefined
               ? Number(item.body_fat_percentage)
               : undefined,
+          trunk_fat:
+            item.trunk_fat !== null && item.trunk_fat !== undefined
+              ? Number(item.trunk_fat)
+              : undefined,
+          visceral_fat:
+            item.visceral_fat !== null && item.visceral_fat !== undefined
+              ? Number(item.visceral_fat)
+              : undefined,
+          health_score:
+            item.health_score !== null && item.health_score !== undefined
+              ? Number(item.health_score)
+              : undefined,
           created_at: item.created_at,
         }));
       }
@@ -762,6 +774,9 @@ export async function saveBodyProgress(
     waist_cm: number;
     skeletal_muscle?: number;
     body_fat_percentage?: number;
+    trunk_fat?: number;
+    visceral_fat?: number;
+    health_score?: number;
   },
   explicitUserId?: string
 ): Promise<BodyProgress> {
@@ -781,6 +796,18 @@ export async function saveBodyProgress(
       entry.body_fat_percentage !== undefined && !isNaN(entry.body_fat_percentage)
         ? Number(entry.body_fat_percentage)
         : undefined,
+    trunk_fat:
+      entry.trunk_fat !== undefined && !isNaN(entry.trunk_fat)
+        ? Number(entry.trunk_fat)
+        : undefined,
+    visceral_fat:
+      entry.visceral_fat !== undefined && !isNaN(entry.visceral_fat)
+        ? Number(entry.visceral_fat)
+        : undefined,
+    health_score:
+      entry.health_score !== undefined && !isNaN(entry.health_score)
+        ? Number(entry.health_score)
+        : undefined,
     created_at: new Date().toISOString(),
   };
 
@@ -798,6 +825,15 @@ export async function saveBodyProgress(
       }
       if (newEntry.body_fat_percentage !== undefined) {
         payload.body_fat_percentage = newEntry.body_fat_percentage;
+      }
+      if (newEntry.trunk_fat !== undefined) {
+        payload.trunk_fat = newEntry.trunk_fat;
+      }
+      if (newEntry.visceral_fat !== undefined) {
+        payload.visceral_fat = newEntry.visceral_fat;
+      }
+      if (newEntry.health_score !== undefined) {
+        payload.health_score = newEntry.health_score;
       }
 
       const { data, error } = await supabase

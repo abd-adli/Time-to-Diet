@@ -75,6 +75,9 @@ export interface BodyProgress {
   waist_cm: number;
   skeletal_muscle?: number;
   body_fat_percentage?: number;
+  trunk_fat?: number;
+  visceral_fat?: number;
+  health_score?: number;
   created_at?: string;
 }
 
